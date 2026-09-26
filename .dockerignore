@@ -1,0 +1,14 @@
+.git
+.agents
+.codex
+.venv
+venv
+work
+__pycache__
+*.py[cod]
+*.db
+*.sqlite3
+*.sqlite3-*
+backups
+collected-static
+.env
