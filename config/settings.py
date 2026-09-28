@@ -4,6 +4,31 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def load_local_environment(path):
+    """Load simple KEY=value settings for local development, without overriding the process environment."""
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, separator, value = line.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        elif " #" in value:
+            value = value.split(" #", 1)[0].rstrip()
+        os.environ.setdefault(key, value)
+
+
+load_local_environment(BASE_DIR / ".env.local")
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "local-development-only-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 DEMO_MODE = os.environ.get("NEXO_DEMO_MODE", "0") == "1"
@@ -90,7 +115,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "same-origin"
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "1") == "1"
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = False
@@ -101,5 +126,10 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "0") == "1"
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError("Configurá solo EMAIL_USE_TLS o EMAIL_USE_SSL, no ambos.")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Nexo Escolar <no-reply@nexo.local>")
+NEXO_WHATSAPP_NUMBER = os.environ.get("NEXO_WHATSAPP_NUMBER", "")
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24

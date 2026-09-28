@@ -35,7 +35,10 @@ services:
       EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+      EMAIL_TIMEOUT: ${EMAIL_TIMEOUT:-10}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Nexo Escolar <no-reply@nexo.local>}
+      NEXO_WHATSAPP_NUMBER: ${NEXO_WHATSAPP_NUMBER:-}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
     volumes:
       - collected-static:/app/collected-static
@@ -78,15 +81,18 @@ services:
       app:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
-    command: >
-      set -eu;
-      while true; do
-        stamp=$$(date +%Y%m%d-%H%M%S);
-        pg_dump -h db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc > "/backups/.nexo-$$stamp.dump.tmp";
-        mv "/backups/.nexo-$$stamp.dump.tmp" "/backups/nexo-$$stamp.dump";
-        find /backups -type f -name 'nexo-*.dump' -mtime +14 -delete;
-        sleep 86400;
-      done
+    command:
+      - |
+        set -eu
+        while true; do
+          stamp=$$(date +%Y%m%d-%H%M%S)
+          pg_dump -h db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc > "/backups/.nexo-$$stamp.dump.tmp"
+          mv "/backups/.nexo-$$stamp.dump.tmp" "/backups/nexo-$$stamp.dump"
+          chown 1000:1000 "/backups/nexo-$$stamp.dump"
+          chmod 600 "/backups/nexo-$$stamp.dump"
+          find /backups -type f -name 'nexo-*.dump' -mtime +14 -delete
+          sleep 86400
+        done
 volumes:
   postgres-data:
   collected-static:

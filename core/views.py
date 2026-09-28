@@ -1,8 +1,11 @@
 import csv
 import calendar
+import hashlib
+import hmac
 import io
 import json
 import re
+import secrets
 import unicodedata
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -25,6 +28,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -34,7 +38,7 @@ from .models import (
     AcademicPeriod, AcademicPlan, Attendance, Audit, Book, Claim, Course,
     Enrollment, Grade, GradingScale, ImportBatch, LostItem, Loan, Membership,
     Notice, NoticeRead, Offering, PlanSubject, PlanYear, PlatformBillingSettings,
-    PlatformPriceChange, School, SchoolEvent, SchoolSubscription, Section, SubscriptionPlan,
+    PlatformPriceChange, School, SchoolEvent, SchoolSignupRequest, SchoolSubscription, Section, SubscriptionPlan,
     Student, StudentGuardian, Subject, SubscriptionCharge, TeacherAssignment, User,
 )
 
@@ -1242,6 +1246,45 @@ def send_invite(request, user):
     send_mail("Activá tu cuenta de Nexo Escolar", f"Hola {user.name},\n\nPara definir tu contraseña y activar tu cuenta, abrí este enlace (válido por 24 horas):\n{link}\n", settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
 
 
+def send_subscription_status_email(subscription, status, charge=None):
+    school_name = subscription.school.name
+    contact_name = subscription.contact_name
+    if status == SchoolSubscription.State.CANCELED:
+        subject = "La suscripción de tu escuela fue cancelada"
+        body = (
+            f"Hola {contact_name},\n\n"
+            f"Te informamos que la suscripción de {school_name} fue cancelada el "
+            f"{timezone.localdate():%d/%m/%Y}. El acceso a Nexo Escolar quedó suspendido.\n\n"
+            "Los datos de la escuela permanecen guardados. Para solicitar la reactivación, "
+            "contactá a la administración de Nexo Escolar.\n"
+        )
+    elif status == SchoolSubscription.State.ACTIVE:
+        if not charge:
+            raise ValueError("Falta el cargo mensual para notificar la reactivación.")
+        payment_status = "pagado" if charge.state == SubscriptionCharge.State.PAID else "pendiente"
+        period = charge.period_start.strftime("%m/%Y") if charge.period_start else timezone.localdate().strftime("%m/%Y")
+        subject = "La suscripción de tu escuela fue reactivada"
+        body = (
+            f"Hola {contact_name},\n\n"
+            f"La suscripción de {school_name} al plan {subscription.get_plan_display()} fue reactivada. "
+            "El acceso a Nexo Escolar ya está habilitado.\n\n"
+            f"El abono mensual de {period}, por ${charge.amount_ars} ARS, figura como {payment_status}.\n"
+        )
+    elif status == SchoolSubscription.State.PENDING:
+        subject = "El alta de tu escuela fue reabierta"
+        body = (
+            f"Hola {contact_name},\n\n"
+            f"El proceso de alta de {school_name} fue reabierto. La escuela sigue pendiente de pago; "
+            "el acceso se habilitará cuando se confirmen el alta y el primer abono.\n"
+        )
+    else:
+        raise ValueError("Estado de suscripción no válido para enviar un aviso.")
+    sent = send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [subscription.contact_email], fail_silently=False)
+    if sent != 1:
+        raise RuntimeError("El servidor de correo no aceptó el mensaje.")
+    return sent
+
+
 @transaction.atomic
 def create_school_member(request, school, data):
     email = str(data.get("email", "")).strip().lower()
@@ -1700,6 +1743,136 @@ def password_reset_complete(request):
     return render(request,"core/password_reset_complete.html")
 
 
+def purge_expired_school_signup_requests():
+    return SchoolSignupRequest.objects.filter(expires_at__lte=timezone.now()).delete()[0]
+
+
+def signup_plan_quotes():
+    pricing = PlatformBillingSettings.objects.filter(pk=1).first()
+    if not pricing or pricing.onboarding_amount_ars <= 0:
+        return []
+    first_day = timezone.localdate().replace(day=1)
+    plans = []
+    for key, label in SubscriptionPlan.choices:
+        monthly = monthly_price_for(first_day, key, pricing)
+        if monthly > 0:
+            plans.append({"id": key, "label": label, "monthly": str(monthly),
+                "onboarding": str(pricing.onboarding_amount_ars),
+                "initial_total": str(monthly + pricing.onboarding_amount_ars)})
+    return plans
+
+
+@ensure_csrf_cookie
+def school_signup_page(request):
+    purge_expired_school_signup_requests()
+    return render(request, "core/school_signup.html", {"plans": signup_plan_quotes()})
+
+
+def school_signup_submit(request):
+    if request.method != "POST":
+        return error("Método no permitido.", 405)
+    purge_expired_school_signup_requests()
+    try:
+        data = json_body(request)
+    except ValueError as exc:
+        return error(exc)
+    # A filled honeypot is silently accepted; it never creates a request or sends mail.
+    if str(data.get("website", "")).strip():
+        return JsonResponse({"message": "Si los datos son válidos, te enviaremos un correo."}, status=202)
+    school_name = str(data.get("school_name", "")).strip()
+    school_type = str(data.get("school_type", ""))
+    jurisdiction = str(data.get("jurisdiction", "")).strip()
+    contact_name = str(data.get("contact_name", "")).strip()
+    contact_email = str(data.get("contact_email", "")).strip().lower()
+    contact_phone = str(data.get("contact_phone", "")).strip()
+    plan = str(data.get("plan", ""))
+    if not school_name or len(school_name) > 180 or school_type not in School.Type.values:
+        return error("Completá un nombre y tipo de escuela válidos.")
+    if len(jurisdiction) > 120 or not contact_name or len(contact_name) > 180:
+        return error("Revisá el nombre del director y la jurisdicción.")
+    if not contact_phone or len(contact_phone) > 40 or not re.fullmatch(r"[+0-9() .-]{7,40}", contact_phone):
+        return error("Ingresá un teléfono válido con característica.")
+    try:
+        validate_email(contact_email)
+    except ValidationError:
+        return error("Ingresá un correo electrónico válido.")
+    plans = {row["id"]: row for row in signup_plan_quotes()}
+    if plan not in plans:
+        return error("El plan elegido no está disponible. Actualizá la página y volvé a intentarlo.")
+
+    now = timezone.now()
+    ip = request.META.get("REMOTE_ADDR", "")[:64]
+    ip_digest = hmac.new(settings.SECRET_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
+    email_count = SchoolSignupRequest.objects.filter(contact_email=contact_email,
+        created_at__gte=now - timedelta(hours=24)).count()
+    ip_count = SchoolSignupRequest.objects.filter(ip_digest=ip_digest,
+        created_at__gte=now - timedelta(hours=24)).count()
+    if email_count >= 3 or ip_count >= 8:
+        return error("Alcanzaste el límite de solicitudes por ahora. Intentá nuevamente mañana.", 429)
+    if SchoolSignupRequest.objects.filter(contact_email=contact_email, school_name__iexact=school_name,
+            expires_at__gt=now, state__in=(SchoolSignupRequest.State.EMAIL_PENDING, SchoolSignupRequest.State.VERIFIED)).exists():
+        return JsonResponse({"message": "Ya existe una solicitud reciente. Revisá tu correo para continuar."}, status=202)
+
+    token = secrets.token_urlsafe(32)
+    quote = plans[plan]
+    signup = SchoolSignupRequest.objects.create(
+        school_name=school_name, school_type=school_type, jurisdiction=jurisdiction,
+        contact_name=contact_name, contact_email=contact_email, contact_phone=contact_phone,
+        plan=plan, monthly_quote_ars=quote["monthly"], onboarding_quote_ars=quote["onboarding"],
+        quoted_at=now, quote_expires_at=now + timedelta(days=7),
+        verification_token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        verification_expires_at=now + timedelta(hours=24), expires_at=now + timedelta(hours=24),
+        ip_digest=ip_digest)
+    verify_url = request.build_absolute_uri(reverse("school_signup_verify", args=(signup.id, token)))
+    subject = "Confirmá el correo para registrar tu escuela en Nexo"
+    body = (f"Hola {contact_name},\n\nPara verificar que este correo te pertenece, abrí este enlace y confirmá la solicitud:\n"
+        f"{verify_url}\n\nEl enlace vence en 24 horas. Después de verificarlo podrás contactar a Nexo por WhatsApp.\n\n"
+        "La solicitud no crea una escuela ni genera cargos hasta que Nexo la revise y apruebe.")
+    try:
+        sent = send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [contact_email], fail_silently=False)
+        if not sent:
+            raise RuntimeError("No se pudo enviar el correo de verificación.")
+    except Exception:
+        signup.delete()
+        return error("No pudimos enviar el correo de verificación. Revisá la configuración de correo e intentá más tarde.", 503)
+    return JsonResponse({"message": "Si los datos son válidos, te enviaremos un correo para verificar la dirección."}, status=202)
+
+
+def school_signup_verify(request, request_id, token):
+    if request.method not in {"GET", "POST"}:
+        return error("Método no permitido.", 405)
+    purge_expired_school_signup_requests()
+    signup = SchoolSignupRequest.objects.filter(pk=request_id).first()
+    valid = bool(signup and signup.state == SchoolSignupRequest.State.EMAIL_PENDING
+        and signup.verification_expires_at > timezone.now()
+        and hmac.compare_digest(signup.verification_token_hash, hashlib.sha256(token.encode()).hexdigest()))
+    if request.method == "POST" and valid:
+        signup.state = SchoolSignupRequest.State.VERIFIED
+        signup.verified_at = timezone.now()
+        signup.expires_at = timezone.now() + timedelta(days=14)
+        signup.verification_token_hash = ""
+        signup.save(update_fields=("state", "verified_at", "expires_at", "verification_token_hash"))
+        return redirect("school_signup_result", request_id=signup.id)
+    return render(request, "core/school_signup_verify.html", {"valid": valid, "signup": signup},
+        status=200 if valid else 410)
+
+
+def school_signup_result(request, request_id):
+    purge_expired_school_signup_requests()
+    signup = SchoolSignupRequest.objects.filter(pk=request_id, state=SchoolSignupRequest.State.VERIFIED).first()
+    whatsapp_url = ""
+    if signup:
+        raw_number = str(getattr(settings, "NEXO_WHATSAPP_NUMBER", "")).strip()
+        digits = re.sub(r"\D", "", raw_number) if re.fullmatch(r"[+0-9() .-]+", raw_number) else ""
+        if re.fullmatch(r"\d{8,15}", digits):
+            plan_label = dict(SubscriptionPlan.choices).get(signup.plan, signup.plan)
+            message = (f"Hola, verifiqué mi solicitud para {signup.school_name}. Código: {signup.id}. "
+                f"Plan: {plan_label}. Quisiera coordinar el alta y la capacitación.")
+            whatsapp_url = f"https://wa.me/{digits}?{urlencode({'text': message})}"
+    return render(request, "core/school_signup_result.html", {"signup": signup, "whatsapp_url": whatsapp_url,
+        "initial_total_ars": signup.monthly_quote_ars + signup.onboarding_quote_ars if signup else None})
+
+
 def platform_school_admin(request):
     if not request.user.is_superuser:
         return error("Acceso solo para administración de la plataforma.", 403)
@@ -1732,6 +1905,141 @@ def platform_school_admin(request):
         except (KeyError, ValueError, IntegrityError) as exc:
             return error(exc)
     return error("Método no permitido.", 405)
+
+
+def platform_school_signup_requests(request):
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    if request.method != "GET":
+        return error("Método no permitido.", 405)
+    purge_expired_school_signup_requests()
+    rows = []
+    for signup in SchoolSignupRequest.objects.filter(state=SchoolSignupRequest.State.VERIFIED).order_by("created_at"):
+        rows.append({"id": str(signup.id), "school_name": signup.school_name,
+            "school_type": signup.school_type, "jurisdiction": signup.jurisdiction,
+            "contact_name": signup.contact_name, "contact_email": signup.contact_email,
+            "contact_phone": signup.contact_phone, "plan": signup.plan,
+            "monthly_quote_ars": str(signup.monthly_quote_ars),
+            "onboarding_quote_ars": str(signup.onboarding_quote_ars),
+            "initial_total_ars": str(signup.monthly_quote_ars + signup.onboarding_quote_ars),
+            "created_at": signup.created_at.isoformat(), "verified_at": signup.verified_at.isoformat() if signup.verified_at else None,
+            "quote_expires_at": signup.quote_expires_at.isoformat(),
+            "quote_expired": signup.quote_expires_at <= timezone.now()})
+    return JsonResponse(rows, safe=False)
+
+
+@transaction.atomic
+def platform_school_signup_approve(request, request_id):
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    if request.method != "POST":
+        return error("Método no permitido.", 405)
+    try:
+        signup = SchoolSignupRequest.objects.select_for_update().get(pk=request_id)
+        if signup.state != SchoolSignupRequest.State.VERIFIED:
+            raise ValueError("La solicitud ya fue atendida o no verificó su correo.")
+        now = timezone.now()
+        if signup.expires_at <= now:
+            signup.delete()
+            raise ValueError("La solicitud venció. La persona deberá iniciar una nueva.")
+        if signup.quote_expires_at <= now:
+            raise ValueError("La cotización venció. Confirmá los valores actuales por WhatsApp y actualizá la cotización.")
+        base_slug = slugify(signup.school_name)[:90].strip("-") or "escuela"
+        slug = base_slug
+        suffix = 2
+        while School.objects.filter(slug=slug).exists():
+            slug = f"{base_slug[:90-len(str(suffix))-1]}-{suffix}"
+            suffix += 1
+        school = School.objects.create(name=signup.school_name, slug=slug,
+            school_type=signup.school_type, jurisdiction=signup.jurisdiction, state=School.State.ONBOARDING)
+        set_rls_school(school)
+        GradingScale.objects.create(school=school)
+        first_day = timezone.localdate().replace(day=1)
+        next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
+        subscription = SchoolSubscription.objects.create(school=school, plan=signup.plan,
+            monthly_amount_ars=signup.monthly_quote_ars, onboarding_amount_ars=signup.onboarding_quote_ars,
+            contact_name=signup.contact_name, contact_email=signup.contact_email)
+        SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.ONBOARDING,
+            plan=signup.plan, amount_ars=signup.onboarding_quote_ars, due_on=timezone.localdate())
+        SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.MONTHLY,
+            period_start=first_day, period_end=next_month - timedelta(days=1), plan=signup.plan,
+            amount_ars=signup.monthly_quote_ars, due_on=timezone.localdate())
+        signup.state = SchoolSignupRequest.State.CONVERTED
+        signup.converted_school = school
+        signup.reviewed_at = now
+        signup.reviewed_by = request.user
+        signup.save(update_fields=("state", "converted_school", "reviewed_at", "reviewed_by"))
+        Audit.objects.create(school=school, actor=request.user, action="Alta aprobada desde solicitud pública",
+            detail=f"{school.name} · solicitud {signup.id}")
+        return JsonResponse({"id": school.id, "name": school.name, "state": school.state,
+            "subscription_state": subscription.state, "plan": subscription.plan,
+            "initial_charges": list(subscription.charges.values("id", "kind", "plan", "amount_ars", "due_on"))}, status=201)
+    except SchoolSignupRequest.DoesNotExist:
+        return error("No se encontró una solicitud vigente.", 404)
+    except (ValueError, IntegrityError) as exc:
+        if isinstance(exc, IntegrityError):
+            transaction.set_rollback(True)
+        return error(exc)
+
+
+@transaction.atomic
+def platform_school_signup_reject(request, request_id):
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    if request.method != "POST":
+        return error("Método no permitido.", 405)
+    try:
+        signup = SchoolSignupRequest.objects.select_for_update().get(pk=request_id)
+        if signup.state != SchoolSignupRequest.State.VERIFIED:
+            raise ValueError("La solicitud ya fue atendida o no verificó su correo.")
+        data = json_body(request)
+        reason = str(data.get("reason", "")).strip()[:300]
+        signup.state = SchoolSignupRequest.State.REJECTED
+        signup.reviewed_at = timezone.now()
+        signup.reviewed_by = request.user
+        signup.rejection_reason = reason
+        signup.save(update_fields=("state", "reviewed_at", "reviewed_by", "rejection_reason"))
+        return JsonResponse({"id": str(signup.id), "state": signup.state})
+    except SchoolSignupRequest.DoesNotExist:
+        return error("No se encontró la solicitud.", 404)
+    except ValueError as exc:
+        return error(exc)
+
+
+@transaction.atomic
+def platform_school_signup_requote(request, request_id):
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    if request.method != "POST":
+        return error("Método no permitido.", 405)
+    try:
+        signup = SchoolSignupRequest.objects.select_for_update().get(pk=request_id,
+            state=SchoolSignupRequest.State.VERIFIED)
+        if signup.expires_at <= timezone.now():
+            signup.delete()
+            raise ValueError("La solicitud venció. La persona deberá iniciar una nueva.")
+        if signup.quote_expires_at > timezone.now():
+            raise ValueError("La cotización sigue vigente; no se puede cambiar su importe todavía.")
+        data = json_body(request)
+        if data.get("whatsapp_confirmed") is not True:
+            raise ValueError("Confirmá primero los nuevos importes con la persona por WhatsApp.")
+        pricing = PlatformBillingSettings.objects.filter(pk=1).first()
+        first_day = timezone.localdate().replace(day=1)
+        monthly = monthly_price_for(first_day, signup.plan, pricing) if pricing else Decimal("0")
+        if monthly <= 0 or not pricing or pricing.onboarding_amount_ars <= 0:
+            raise ValueError("No hay precios configurados para actualizar esta cotización.")
+        now = timezone.now()
+        signup.monthly_quote_ars = monthly
+        signup.onboarding_quote_ars = pricing.onboarding_amount_ars
+        signup.quoted_at = now
+        signup.quote_expires_at = now + timedelta(days=7)
+        signup.save(update_fields=("monthly_quote_ars", "onboarding_quote_ars", "quoted_at", "quote_expires_at"))
+        return JsonResponse({"monthly_quote_ars": str(monthly), "onboarding_quote_ars": str(pricing.onboarding_amount_ars),
+            "quote_expires_at": signup.quote_expires_at.isoformat()})
+    except SchoolSignupRequest.DoesNotExist:
+        return error("No se encontró una solicitud vigente.", 404)
+    except ValueError as exc:
+        return error(exc)
 
 
 @transaction.atomic
@@ -1985,6 +2293,9 @@ def platform_subscription_charges(request):
 def activate_paid_subscription(request, subscription):
     if subscription.state != SchoolSubscription.State.PENDING:
         return False
+    # Platform billing runs without a school selected in the admin session.
+    # Set the tenant scope before touching school-protected rows (membership/audit).
+    set_rls_school(subscription.school)
     setup = subscription.charges.filter(kind=SubscriptionCharge.Kind.ONBOARDING).first()
     first_month = subscription.charges.filter(kind=SubscriptionCharge.Kind.MONTHLY).order_by("period_start").first()
     if not setup or not first_month or setup.state != SubscriptionCharge.State.PAID or first_month.state != SubscriptionCharge.State.PAID:
@@ -2060,6 +2371,29 @@ def platform_school_state(request, school_id):
     except (School.DoesNotExist,ValueError) as exc:return error(exc,404 if isinstance(exc,School.DoesNotExist) else 400)
 
 
+def platform_resend_school_invite(request, school_id):
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    if request.method != "POST":
+        return error("Método no permitido.", 405)
+    try:
+        subscription = SchoolSubscription.objects.select_related("school").get(school_id=school_id)
+    except SchoolSubscription.DoesNotExist:
+        return error("No se encontró la suscripción de esta escuela.", 404)
+    if subscription.state != SchoolSubscription.State.ACTIVE or subscription.school.state != School.State.ACTIVE:
+        return error("La invitación solo se puede reenviar a una escuela activa.", 400)
+    user = User.objects.filter(email__iexact=subscription.contact_email, is_active=True).first()
+    if not user or not Membership.objects.filter(school=subscription.school, user=user, is_active=True).exists():
+        return error("No se encontró una cuenta activa para la persona responsable de esta escuela.", 400)
+    try:
+        send_invite(request, user)
+    except Exception:
+        return error("No se pudo enviar la invitación. Revisá la configuración SMTP y volvé a intentar.", 502)
+    Audit.objects.create(school=subscription.school, actor=request.user,
+        action="Invitación de acceso reenviada", detail=f"Invitación reenviada a {subscription.contact_email}")
+    return JsonResponse({"sent": True})
+
+
 @transaction.atomic
 def platform_school_subscription(request, school_id):
     if not request.user.is_superuser:
@@ -2069,7 +2403,61 @@ def platform_school_subscription(request, school_id):
     try:
         data = json_body(request)
         subscription = SchoolSubscription.objects.select_related("school").get(school_id=school_id)
+        set_rls_school(subscription.school)
         apply_due_subscription_plan(subscription)
+        if data.get("state") == SchoolSubscription.State.ACTIVE:
+            if subscription.state != SchoolSubscription.State.CANCELED or subscription.school.state != School.State.SUSPENDED:
+                raise ValueError("Solo se puede reactivar una suscripción cancelada.")
+            access_enabled = bool(subscription.activated_at)
+            charge_created = False
+            charge = None
+            monthly_amount = subscription.monthly_amount_ars
+            if access_enabled:
+                first_day = timezone.localdate().replace(day=1)
+                next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
+                monthly_amount = monthly_price_for(first_day, subscription.plan)
+                if monthly_amount <= 0:
+                    raise ValueError("Configurá el precio mensual de este plan antes de reactivar la suscripción.")
+                due_on = max(first_day + timedelta(days=9), timezone.localdate())
+                charge, charge_created = SubscriptionCharge.objects.get_or_create(
+                    subscription=subscription, kind=SubscriptionCharge.Kind.MONTHLY, period_start=first_day,
+                    defaults={"period_end": next_month - timedelta(days=1), "plan": subscription.plan,
+                        "amount_ars": monthly_amount, "due_on": due_on})
+                if charge.state == SubscriptionCharge.State.VOID:
+                    charge.state = SubscriptionCharge.State.PENDING
+                    charge.plan = subscription.plan
+                    charge.amount_ars = monthly_amount
+                    charge.due_on = due_on
+                    charge.invoice_number = ""
+                    charge.transfer_reference = ""
+                    charge.paid_at = None
+                    charge.recorded_by = None
+                    charge.save(update_fields=("state", "plan", "amount_ars", "due_on", "invoice_number",
+                        "transfer_reference", "paid_at", "recorded_by"))
+                    charge_created = True
+                subscription.state = SchoolSubscription.State.ACTIVE
+                subscription.monthly_amount_ars = monthly_amount
+                subscription.save(update_fields=("state", "monthly_amount_ars"))
+                subscription.school.state = School.State.ACTIVE
+                subscription.school.save(update_fields=("state",))
+                notification_status = SchoolSubscription.State.ACTIVE
+            else:
+                subscription.state = SchoolSubscription.State.PENDING
+                subscription.save(update_fields=("state",))
+                subscription.school.state = School.State.ONBOARDING
+                subscription.school.save(update_fields=("state",))
+                notification_status = SchoolSubscription.State.PENDING
+            Audit.objects.create(school=subscription.school, actor=request.user,
+                action="Suscripción reactivada",
+                detail="Acceso restablecido desde la consola de plataforma" if access_enabled else "Alta reabierta; pendiente de pagos")
+            try:
+                send_subscription_status_email(subscription, notification_status, charge)
+            except Exception:
+                transaction.set_rollback(True)
+                return error("No se pudo enviar el aviso de reactivación; la operación no se aplicó. Revisá la configuración SMTP.", 502)
+            return JsonResponse({"school_id": school_id, "state": subscription.state,
+                "monthly_charge_created": charge_created, "monthly_amount_ars": str(monthly_amount),
+                "access_enabled": access_enabled, "notification_sent": True})
         if data.get("state") == SchoolSubscription.State.CANCELED:
             subscription.state = SchoolSubscription.State.CANCELED
             subscription.pending_plan = None
@@ -2080,7 +2468,13 @@ def platform_school_subscription(request, school_id):
             set_rls_school(subscription.school)
             Audit.objects.create(school=subscription.school, actor=request.user,
                 action="Suscripción cancelada", detail="Cancelación manual desde la consola de plataforma")
-            return JsonResponse({"school_id": school_id, "state": subscription.state})
+            try:
+                send_subscription_status_email(subscription, SchoolSubscription.State.CANCELED)
+            except Exception:
+                transaction.set_rollback(True)
+                return error("No se pudo enviar el aviso de cancelación; la operación no se aplicó. Revisá la configuración SMTP.", 502)
+            return JsonResponse({"school_id": school_id, "state": subscription.state,
+                "notification_sent": True})
 
         plan = data.get("plan")
         if plan not in SubscriptionPlan.values:

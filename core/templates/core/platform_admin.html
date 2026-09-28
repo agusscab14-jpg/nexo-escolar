@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/platform-admin.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/platform-admin.css' %}?v=5">
 </head>
 <body>
   <div class="platform-layout">
@@ -17,91 +17,117 @@
       <a class="platform-brand" href="/plataforma/" aria-label="Nexo Escolar, administración de plataforma">
         <span class="brand-mark">n</span><span>Nexo<span class="brand-light">Escolar</span></span>
       </a>
-      <div class="workspace-label">CONSOLA DE PLATAFORMA</div>
+      <div class="workspace-label">ADMINISTRACIÓN</div>
       <nav class="platform-nav" aria-label="Administración de plataforma">
-        <a class="platform-nav-item active" id="institutions-nav" href="#institutions-section"><span aria-hidden="true">▦</span> Instituciones</a>
-        <a class="platform-nav-item" id="billing-nav" href="#billing-section"><span aria-hidden="true">◷</span> Cobros</a>
+        <a class="platform-nav-item" id="requests-nav" href="#requests-section"><span aria-hidden="true">✉</span><span><b>Solicitudes</b><small>Altas por WhatsApp</small></span><span class="nav-count" id="request-count" hidden></span></a>
+        <a class="platform-nav-item active" id="institutions-nav" href="#institutions-section" aria-current="page"><span aria-hidden="true">▦</span><span><b>Escuelas</b><small>Instituciones y accesos</small></span></a>
+        <a class="platform-nav-item" id="billing-nav" href="#billing-section"><span aria-hidden="true">◷</span><span><b>Cobros</b><small>Precios y pagos</small></span></a>
       </nav>
       <div class="sidebar-note">
-        <span class="note-mark">✓</span>
-        <b>Acceso de plataforma</b>
-        <p>Esta consola está reservada para la administración general de Nexo Escolar.</p>
+        <span class="note-mark">i</span>
+        <b>¿Qué podés hacer?</b>
+        <p>Administrar escuelas, revisar pagos y gestionar suscripciones.</p>
       </div>
-      <button class="account-button" id="logout-button" type="button">
+      <button class="account-button" id="logout-button" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
         <span class="account-avatar">{{ name|first|upper }}</span>
-        <span><b>{{ name }}</b><small>Administración de plataforma</small></span>
-        <span class="logout-mark" aria-hidden="true">↗</span>
+        <span><b>{{ name }}</b><small>Cerrar sesión</small></span>
+        <span class="logout-mark" aria-hidden="true">⏻</span>
       </button>
     </aside>
 
     <main class="platform-main">
       <header class="platform-topbar">
-        <span class="topbar-context"><span class="online-dot"></span> Consola de administración</span>
+        <span class="topbar-context"><span class="online-dot"></span> Administración de Nexo Escolar</span>
         <span class="secure-label"><span aria-hidden="true">⌑</span> Acceso protegido</span>
       </header>
 
       <div class="platform-content">
-        <section class="page-intro" id="institutions-section">
-          <div>
-            <span class="eyebrow">ADMINISTRACIÓN DE PLATAFORMA</span>
-            <h1>Instituciones</h1>
-            <p>Creá y administrá las instituciones que usan Nexo Escolar.</p>
-          </div>
-          <button class="primary-button" id="create-school-button" type="button"><span>＋</span> Crear institución</button>
-        </section>
-
-        <section class="metrics" id="school-metrics" aria-label="Resumen de instituciones">
-          <article class="metric-card"><span class="metric-icon green-icon">▦</span><div><small>Total de instituciones</small><strong id="metric-total">—</strong></div></article>
-          <article class="metric-card"><span class="metric-icon amber-icon">◷</span><div><small>Altas pendientes</small><strong id="metric-trial">—</strong></div></article>
-          <article class="metric-card"><span class="metric-icon blue-icon">✓</span><div><small>Activas</small><strong id="metric-active">—</strong></div></article>
-        </section>
-
-        <section class="institutions-panel">
-          <div class="panel-heading">
-            <div><h2>Instituciones registradas</h2><p>Estado, jurisdicción y cuentas de cada institución.</p></div>
-            <label class="search-field"><span aria-hidden="true">⌕</span><input id="school-search" type="search" placeholder="Buscar institución…" autocomplete="off"></label>
-          </div>
-          <div id="school-list" class="school-list" aria-live="polite"><div class="loading-state"><span class="spinner"></span> Cargando instituciones…</div></div>
-        </section>
-        <section class="billing-section" id="billing-section">
-          <div class="page-intro">
+        <section class="platform-view" id="requests-section" hidden>
+          <header class="page-intro">
             <div>
-              <span class="eyebrow">SUSCRIPCIONES EN PESOS</span>
-              <h1>Cobros</h1>
-              <p>Configurá la tarifa, registrá transferencias y controlá los vencimientos.</p>
+              <span class="eyebrow">ALTAS PÚBLICAS</span>
+              <h1>Solicitudes</h1>
+              <p>Verificá el correo y conversá por WhatsApp antes de aprobar el alta. Aprobar crea la escuela y sus dos cargos iniciales.</p>
             </div>
-          </div>
+            <button class="secondary-button" id="refresh-requests" type="button">Actualizar</button>
+          </header>
+          <div id="signup-request-list" class="signup-request-list" aria-live="polite"><div class="loading-state"><span class="spinner"></span> Cargando solicitudes…</div></div>
+        </section>
+        <section class="platform-view" id="institutions-section">
+          <header class="page-intro">
+            <div>
+              <span class="eyebrow">INSTITUCIONES</span>
+              <h1>Escuelas</h1>
+              <p>Creá escuelas y gestioná su acceso y suscripción.</p>
+            </div>
+            <button class="primary-button" id="create-school-button" type="button"><span>＋</span> Nueva escuela</button>
+          </header>
+
+          <section class="metrics" id="school-metrics" aria-label="Resumen de instituciones">
+            <article class="metric-card"><span class="metric-icon green-icon">▦</span><div><small>Total de escuelas</small><strong id="metric-total">—</strong></div></article>
+            <article class="metric-card"><span class="metric-icon amber-icon">◷</span><div><small>Esperando pagos</small><strong id="metric-trial">—</strong></div></article>
+            <article class="metric-card"><span class="metric-icon blue-icon">✓</span><div><small>Con acceso</small><strong id="metric-active">—</strong></div></article>
+          </section>
+
+          <section class="institutions-panel">
+            <div class="panel-heading">
+              <div><h2>Todas las instituciones</h2><p>Buscá una escuela o filtrá por estado.</p></div>
+              <label class="search-field"><span aria-hidden="true">⌕</span><input id="school-search" type="search" placeholder="Buscar escuela…" autocomplete="off"></label>
+            </div>
+            <div class="institution-filters" role="group" aria-label="Filtrar instituciones">
+              <button class="filter-chip active" type="button" data-school-filter="all" aria-pressed="true">Todas <span id="filter-all-count">0</span></button>
+              <button class="filter-chip" type="button" data-school-filter="onboarding" aria-pressed="false">Esperando pagos <span id="filter-onboarding-count">0</span></button>
+              <button class="filter-chip" type="button" data-school-filter="active" aria-pressed="false">Con acceso <span id="filter-active-count">0</span></button>
+              <button class="filter-chip" type="button" data-school-filter="suspended" aria-pressed="false">Suspendidas <span id="filter-suspended-count">0</span></button>
+            </div>
+            <div id="school-list" class="school-list" aria-live="polite"><div class="loading-state"><span class="spinner"></span> Cargando instituciones…</div></div>
+          </section>
+        </section>
+        <section class="platform-view" id="billing-section" hidden>
+          <header class="page-intro">
+            <div>
+              <span class="eyebrow">GESTIÓN DE SUSCRIPCIONES</span>
+              <h1>Cobros</h1>
+              <p>Definí precios, generá abonos y registrá los pagos recibidos.</p>
+            </div>
+          </header>
           <div class="billing-grid">
             <form class="billing-card" id="billing-settings-form">
-              <h2>Tarifas actuales</h2>
-              <p>Configurá cada abono mensual y el alta común a los dos planes.</p>
-              <label>Plan Básico · abono mensual (ARS)<input id="basic-monthly-amount" name="basic_monthly_amount_ars" type="number" min="0.01" step="0.01" required></label>
-              <label>Plan Pro · abono mensual (ARS)<input id="pro-monthly-amount" name="pro_monthly_amount_ars" type="number" min="0" step="0.01" aria-describedby="pro-price-hint"></label>
-              <small id="pro-price-hint" class="form-hint">Dejá 0 hasta definir la tarifa Pro; no se podrán crear altas Pro mientras esté en 0.</small>
+              <span class="billing-step">PASO 1</span>
+              <h2>Definí los precios</h2>
+              <p>Estos importes se usan al registrar una nueva escuela.</p>
+              <label>Abono mensual · Básico (ARS)<input id="basic-monthly-amount" name="basic_monthly_amount_ars" type="number" min="0.01" step="0.01" required></label>
+              <label>Abono mensual · Pro (ARS)<input id="pro-monthly-amount" name="pro_monthly_amount_ars" type="number" min="0" step="0.01" aria-describedby="pro-price-hint"></label>
+              <small id="pro-price-hint" class="form-hint">Usá 0 si todavía no ofrecés el plan Pro.</small>
               <label>Alta y capacitación (ARS)<input id="onboarding-amount" name="onboarding_amount_ars" type="number" min="0.01" step="0.01" required></label>
-              <button class="primary-button" type="submit" id="save-pricing-button">Guardar tarifa</button>
+              <button class="primary-button" type="submit" id="save-pricing-button">Guardar precios</button>
               <small id="pricing-lock-note" class="form-hint"></small>
             </form>
             <form class="billing-card" id="price-change-form">
-              <h2>Programar ajuste</h2>
-              <p>Elegí el plan. El cambio se aplica desde el primer día del mes elegido y se informa a sus escuelas.</p>
+              <span class="billing-step">PASO 2</span>
+              <h2>Programá un cambio de precio</h2>
+              <p>El nuevo importe entra en vigencia el primer día del mes elegido. Se avisa a las escuelas alcanzadas.</p>
               <label>Plan<select name="plan" required><option value="basic">Básico</option><option value="pro">Pro</option></select></label>
               <label>Nuevo abono mensual (ARS)<input name="monthly_amount_ars" type="number" min="0.01" step="0.01" required></label>
-              <label>Vigente desde<input name="effective_on" type="date" required></label>
-              <button class="secondary-button" type="submit">Programar ajuste</button>
+              <label>Mes de vigencia<input name="effective_on" type="month" required><small class="form-hint">Se aplica el primer día del mes seleccionado, con al menos 30 días de aviso.</small></label>
+              <button class="secondary-button" type="submit">Programar cambio</button>
               <div id="scheduled-prices" class="scheduled-prices"></div>
             </form>
             <form class="billing-card billing-generate" id="generate-charges-form">
-              <h2>Generar abonos del mes</h2>
-              <p>Se crea como máximo un cargo mensual por escuela y período. Vence el día 10.</p>
-              <label>Mes<input id="charge-month" name="month" type="month" required></label>
-              <button class="secondary-button" type="submit">Generar cargos</button>
+              <span class="billing-step">PASO 3</span>
+              <h2>Crear los abonos del mes</h2>
+              <p>Generá los cargos mensuales de las suscripciones activas. Cada cargo vence el día 10.</p>
+              <label>Mes<input id="charge-month" name="month" type="month" required><small class="form-hint">Solo se pueden crear abonos del mes en curso.</small></label>
+              <button class="secondary-button" type="submit">Crear abonos</button>
             </form>
           </div>
-          <section class="institutions-panel charges-panel">
+          <section class="institutions-panel charges-panel" id="charges-panel">
             <div class="panel-heading">
-              <div><h2>Cargos y transferencias</h2><p>El comprobante fiscal se emite fuera de Nexo; acá se registra su número y el pago.</p></div>
-              <span id="charge-summary" class="secure-label"></span>
+              <div><h2>Abonos y pagos</h2><p>Consultá lo pendiente y registrá cada transferencia recibida. Las facturas se emiten fuera de Nexo.</p></div>
+              <div class="charge-tools">
+                <span id="charge-summary" class="charge-summary"></span>
+                <label class="search-field"><span aria-hidden="true">⌕</span><input id="charge-search" type="search" placeholder="Buscar escuela…" autocomplete="off" aria-label="Buscar cobros por escuela"></label>
+              </div>
             </div>
             <div id="charge-list" class="school-list" aria-live="polite"><div class="loading-state"><span class="spinner"></span> Cargando cargos…</div></div>
           </section>
@@ -112,6 +138,6 @@
   </div>
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="{% static 'js/platform-admin.js' %}?v=3"></script>
+  <script src="{% static 'js/platform-admin.js' %}?v=5"></script>
 </body>
 </html>

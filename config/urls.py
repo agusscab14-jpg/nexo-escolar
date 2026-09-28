@@ -1,15 +1,20 @@
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path
+from core.forms import NexoPasswordResetForm
 from core import views
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("registro/", views.school_signup_page, name="school_signup"),
+    path("registro/verificar/<uuid:request_id>/<str:token>/", views.school_signup_verify, name="school_signup_verify"),
+    path("registro/solicitud/<uuid:request_id>/", views.school_signup_result, name="school_signup_result"),
     path("plataforma/", views.platform_admin, name="platform_admin"),
     path("healthz/", views.api_health, name="healthz"),
     path("admin/", admin.site.urls),
     path("accounts/password_reset/", auth_views.PasswordResetView.as_view(
-        template_name="core/password_reset_form.html", email_template_name="core/password_reset_email.txt",
+        template_name="core/password_reset_form.html", form_class=NexoPasswordResetForm,
+        email_template_name="core/password_reset_email.txt",
         subject_template_name="core/password_reset_subject.txt", success_url="/accounts/password_reset/done/"), name="password_reset"),
     path("accounts/password_reset/done/", auth_views.PasswordResetDoneView.as_view(template_name="core/password_reset_done.html"), name="password_reset_done"),
     path("accounts/reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(
@@ -21,7 +26,13 @@ urlpatterns = [
     path("api/v1/schools/", views.api_schools, name="api_schools"),
     path("api/v1/schools/<int:school_id>/state/", views.platform_school_state, name="platform_school_state"),
     path("api/v1/platform/schools/<int:school_id>/subscription/", views.platform_school_subscription, name="platform_school_subscription"),
+    path("api/v1/platform/schools/<int:school_id>/invite/", views.platform_resend_school_invite, name="platform_resend_school_invite"),
     path("api/v1/platform/schools/", views.platform_school_admin, name="platform_schools"),
+    path("api/v1/public/school-signups/", views.school_signup_submit, name="public_school_signups"),
+    path("api/v1/platform/school-signups/", views.platform_school_signup_requests, name="platform_school_signups"),
+    path("api/v1/platform/school-signups/<uuid:request_id>/approve/", views.platform_school_signup_approve, name="platform_school_signup_approve"),
+    path("api/v1/platform/school-signups/<uuid:request_id>/reject/", views.platform_school_signup_reject, name="platform_school_signup_reject"),
+    path("api/v1/platform/school-signups/<uuid:request_id>/requote/", views.platform_school_signup_requote, name="platform_school_signup_requote"),
     path("api/v1/platform/billing/settings/", views.platform_billing_settings, name="platform_billing_settings"),
     path("api/v1/platform/billing/price-changes/", views.platform_schedule_price_change, name="platform_price_changes"),
     path("api/v1/platform/billing/charges/", views.platform_subscription_charges, name="platform_subscription_charges"),

@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
 from django.utils import timezone
 
 from core.models import (
@@ -35,6 +36,10 @@ class Command(BaseCommand):
                 "name": school_name, "school_type": school_type, "jurisdiction": "Provincia a definir",
                 "state": School.State.TRIAL,
             })
+            # The seed runs outside HTTP middleware, so establish the tenant
+            # scope explicitly for PostgreSQL row-level security policies.
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT set_config('app.current_school_id', %s, false)", [str(school.pk)])
             Membership.objects.update_or_create(school=school, user=director, defaults={"role": Membership.Role.DIRECTOR, "is_active": True})
             if not school.memberships.filter(user=platform).exists():
                 Membership.objects.create(school=school, user=platform, role=Membership.Role.SCHOOL_ADMIN)
@@ -91,6 +96,8 @@ class Command(BaseCommand):
             Notice.objects.get_or_create(school=school, title="Bienvenidos al ciclo lectivo", defaults={
                 "body": "Este es un aviso de ejemplo para probar la plataforma.", "audience": Notice.Audience.ALL, "created_by": director})
             self.stdout.write(self.style.SUCCESS(f"Preparada: {school.name}"))
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT set_config('app.current_school_id', '', false)")
         self.stdout.write(self.style.WARNING("Cuentas ficticias: contraseña demo123. No uses estas cuentas en producción."))
         self.stdout.write(f"Admin. plataforma: admin@demo.edu | Directivo multi escuela: directivo@demo.edu")
 

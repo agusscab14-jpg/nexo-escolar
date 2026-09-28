@@ -434,6 +434,46 @@ class PlatformBillingSettings(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+class SchoolSignupRequest(models.Model):
+    """Short-lived public requests, kept separate from real schools and billing records."""
+
+    class State(models.TextChoices):
+        EMAIL_PENDING = "email_pending", "Verificación pendiente"
+        VERIFIED = "verified", "Verificada"
+        CONVERTED = "converted", "Convertida en escuela"
+        REJECTED = "rejected", "Rechazada"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    state = models.CharField(max_length=20, choices=State.choices, default=State.EMAIL_PENDING)
+    school_name = models.CharField(max_length=180)
+    school_type = models.CharField(max_length=20, choices=School.Type.choices)
+    jurisdiction = models.CharField(max_length=120, blank=True)
+    contact_name = models.CharField(max_length=180)
+    contact_email = models.EmailField(db_index=True)
+    contact_phone = models.CharField(max_length=40)
+    plan = models.CharField(max_length=12, choices=SubscriptionPlan.choices)
+    monthly_quote_ars = models.DecimalField(max_digits=12, decimal_places=2)
+    onboarding_quote_ars = models.DecimalField(max_digits=12, decimal_places=2)
+    quoted_at = models.DateTimeField(default=timezone.now)
+    quote_expires_at = models.DateTimeField()
+    verification_token_hash = models.CharField(max_length=64)
+    verification_expires_at = models.DateTimeField()
+    expires_at = models.DateTimeField(db_index=True)
+    ip_digest = models.CharField(max_length=64, db_index=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="reviewed_school_signup_requests")
+    rejection_reason = models.CharField(max_length=300, blank=True)
+    converted_school = models.OneToOneField(School, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="signup_request")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=("state", "expires_at")), models.Index(fields=("contact_email", "created_at"))]
+
+
 class PlatformPriceChange(models.Model):
     plan = models.CharField(max_length=12, choices=SubscriptionPlan.choices, default=SubscriptionPlan.BASIC)
     monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2)

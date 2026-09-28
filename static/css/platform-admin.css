@@ -8,3 +8,147 @@
 html{scroll-behavior:smooth}.billing-section{margin-top:52px;scroll-margin-top:20px}.billing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:17px}.billing-card{display:grid;align-content:start;gap:12px;padding:18px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}.billing-card h2{margin:0;font:700 15px var(--display)}.billing-card p{margin:-6px 0 1px;color:var(--muted);font-size:11px;line-height:1.55}.billing-card label{display:grid;gap:6px;color:#65756d;font-size:11px;font-weight:600}.billing-card input{width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:12px}.billing-card input:focus{outline:0;border-color:#9cb9a5;box-shadow:0 0 0 3px #edf4ef}.billing-card .primary-button,.billing-card .secondary-button{justify-self:start}.billing-card .form-hint{color:#89968f;font-size:10px;line-height:1.5}.billing-generate{grid-column:1/-1;grid-template-columns:1fr minmax(170px,260px) auto;align-items:end}.billing-generate h2,.billing-generate p{grid-column:1/-1}.scheduled-prices{display:grid;gap:6px;color:#63746a;font-size:10px}.scheduled-price{padding:7px 9px;border-radius:7px;background:#f4f7f4}.charges-panel{margin-top:15px}.charge-state{display:inline-flex;padding:5px 8px;border-radius:99px;background:#e8f3eb;color:#477d56;font-size:10px;font-weight:700;white-space:nowrap}.charge-state.pending{background:#fbf2e2;color:#98702f}.charge-state.overdue{background:#f5e9e7;color:#9a5d53}.charge-state.void{background:#f0f2f1;color:#7b8781}.charge-period{color:#87948d;font-size:10px}.charge-amount{color:#34483c;font-weight:700;white-space:nowrap}.charge-detail{display:block;margin-top:3px;color:#929d97;font-size:9px}.billing-empty{min-height:140px}
 .state-onboarding{background:#eaf0f4;color:#58758a}
 @media(max-width:740px){.billing-section{margin-top:38px}.billing-grid{grid-template-columns:1fr}.billing-generate{grid-column:auto;grid-template-columns:1fr}.billing-generate h2,.billing-generate p{grid-column:auto}.charges-panel .school-table{min-width:820px}}
+.platform-view[hidden]{display:none!important}
+.platform-nav-item{gap:12px;min-height:48px}
+.platform-nav-item>span:first-child{flex:none;width:20px}
+.platform-nav-item>span:nth-child(2){display:grid;gap:2px;min-width:0}
+.platform-nav-item .nav-count{display:grid;place-items:center;width:auto;min-width:21px;height:21px;margin-left:auto;padding:0 5px;border-radius:99px;background:#d7eadc;color:#326349;font-size:10px;font-weight:800}
+.platform-nav-item .nav-count[hidden]{display:none}
+.platform-nav-item b{font-size:13px;font-weight:700}
+.platform-nav-item small{color:#8a9790;font-size:10px;font-weight:500}
+.platform-nav-item.active small{color:#648270}
+.page-intro{margin-bottom:23px}
+.page-intro h1{font-size:30px}
+.metrics{margin-bottom:19px}
+.metric-card{min-height:82px}
+.institution-filters{display:flex;align-items:center;gap:7px;overflow-x:auto;padding:12px 20px;border-bottom:1px solid var(--line)}
+.filter-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:#68776f;font-size:11px;font-weight:600;white-space:nowrap}
+.filter-chip:hover{background:#f4f7f4}
+.filter-chip.active{border-color:#d7e6db;background:#edf5ef;color:#326349}
+.filter-chip span{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#edf0ed;color:#65736b;font-size:10px}
+.filter-chip.active span{background:#dcece0;color:#34634a}
+.school-list{min-height:130px}
+.school-record-list{display:grid}
+.school-record{display:grid;grid-template-columns:minmax(240px,1.55fr) minmax(115px,.65fr) minmax(145px,.85fr) auto;align-items:center;gap:18px;padding:16px 20px;border-top:1px solid #edf0ed;background:#fff;transition:background .15s}
+.school-record:first-child{border-top:0}
+.school-record:hover{background:#fbfcfb}
+.school-record-main{display:flex;align-items:center;gap:12px;min-width:0}
+.school-record-main .school-initial{width:40px;height:40px}
+.school-record-identity{min-width:0}
+.school-record-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.school-record-title h3{margin:0;color:#2d3e36;font:700 13px/1.35 var(--display)}
+.school-record-identity p{margin:5px 0 2px;color:#738078;font-size:10px;line-height:1.45}
+.school-record-identity p span{padding:0 2px;color:#b0bbb4}
+.school-record-identity>small{color:#98a39d;font-size:9px}
+.school-record-plan,.school-record-billing{display:grid;justify-items:start;gap:4px;min-width:0}
+.school-record-plan>small,.school-record-billing>small{color:#9aa59f;font-size:8px;font-weight:700;letter-spacing:.8px}
+.school-record-plan strong{color:#42564a;font-size:11px}
+.school-record-plan>span{color:#8a978f;font-size:9px;line-height:1.4}
+.school-record-billing .charge-state{font-size:9px}
+.school-record-action{justify-self:end}
+.manage-button{padding:8px 11px;color:#34664d;font-size:11px}
+.manage-button span{margin-left:4px;font-size:15px;line-height:0}
+.empty-state .primary-button{margin:14px auto 0}
+.empty-state .text-button{justify-self:center;margin-top:12px;border:0;background:none;color:#3f7054;font-size:11px;font-weight:700}
+.billing-step{display:inline-flex;align-items:center;justify-self:start;padding:4px 7px;border-radius:5px;background:#edf4ef;color:#5d8368;font-size:8px;font-weight:700;letter-spacing:.8px}
+.billing-card h2{font-size:14px}
+.billing-card .form-hint{margin-top:-7px}
+.billing-card label .form-hint{margin:0;font-weight:400}
+.billing-card input:disabled{background:#f3f5f3;color:#8b9790;cursor:not-allowed}
+.billing-card .primary-button:disabled,.billing-card .secondary-button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.charge-summary{display:inline-flex;padding:7px 10px;border-radius:8px;background:#edf4ef;color:#4e765b;font-size:10px;font-weight:700;white-space:nowrap}
+.charge-summary.has-overdue{background:#f7eeeb;color:#985f53}
+.charge-tools{display:flex;align-items:center;gap:10px}
+.charge-tools .search-field{width:215px}
+.charges-panel{scroll-margin-top:24px}
+.manage-modal{width:min(100%,560px)}
+.manage-modal .modal-header{align-items:flex-start;margin-bottom:15px}
+.manage-modal .modal-header .eyebrow{display:block;margin-bottom:5px}
+.manage-modal .modal-header h2{font-size:19px}
+.manage-facts{display:grid;grid-template-columns:1fr 1fr 90px;gap:10px;padding:13px;border:1px solid #edf1ed;border-radius:9px;background:#f8faf8}
+.manage-facts>div{display:grid;align-content:start;gap:4px;min-width:0}
+.manage-facts small{color:#95a099;font-size:8px;font-weight:700;letter-spacing:.7px}
+.manage-facts b{overflow:hidden;color:#4b5d52;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.manage-section{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+.manage-section h3{margin:0;color:#34483c;font:700 12px var(--display)}
+.manage-section p{margin:4px 0 0;color:#829088;font-size:10px;line-height:1.5}
+.manage-section>.state-pill{flex:none}
+.manage-actions,.manage-subscription-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:11px}
+.manage-actions:empty{display:none}
+.manage-muted{margin:0;color:#829088;font-size:10px}
+.manage-subscription{padding-top:17px;border-top:1px solid #edf1ed}
+.manage-subscription-body{display:grid;gap:9px;margin-top:11px}
+.manage-plan-line{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#75827a;font-size:10px}
+.manage-plan-line strong{color:#42564a;font-size:10px;text-align:right}
+.manage-subscription-actions{margin-top:4px}
+.scheduled-change{display:flex;align-items:center;flex-wrap:wrap;gap:8px;color:#7b8980;font-size:10px}
+.danger-button{padding:9px 11px;border:1px solid #ead8d4;border-radius:8px;background:#fff;color:#955d53;font-size:11px;font-weight:700}
+.danger-button:hover{background:#fbf2f0;border-color:#dbbcb5}
+.manage-modal .modal-actions{margin-top:18px;padding-top:13px;border-top:1px solid #edf1ed}
+.action-button:disabled,.danger-button:disabled{opacity:.55;cursor:not-allowed}
+.signup-request-list{display:grid;gap:13px}
+.signup-request-card{padding:19px 21px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}
+.request-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:15px;border-bottom:1px solid #edf0ed}
+.request-card-top h2{margin:5px 0 2px;color:#2d3e36;font:700 17px var(--display)}
+.request-card-top p{margin:0;color:var(--muted);font-size:11px}
+.request-verified{flex:none;padding:5px 9px;border-radius:99px;background:#e8f3eb;color:#477d56;font-size:9px;font-weight:700}
+.request-details{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px 0}
+.request-details>div{display:grid;align-content:start;gap:4px;min-width:0}
+.request-details small{margin-bottom:3px;color:#9aa59f;font-size:8px;font-weight:700;letter-spacing:.8px}
+.request-details b{color:#40564b;font-size:11px}
+.request-details span{color:#738078;font-size:10px;overflow-wrap:anywhere}
+.request-expired{color:#9a5d53!important;font-weight:700}
+.request-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:13px;border-top:1px solid #edf0ed}
+.request-actions .primary-button,.request-actions .secondary-button,.request-actions .action-button{font-size:10px}
+.text-button{border:0;background:transparent;color:#49745a;font-size:11px;font-weight:700;cursor:pointer}
+.danger-text{color:#9a6156}
+@media(max-width:980px){
+  .school-record{grid-template-columns:minmax(0,1fr) minmax(135px,.7fr);gap:10px;padding:14px}
+  .school-record-main{grid-column:1/-1}
+  .school-record-plan{grid-column:1;grid-row:2}
+  .school-record-billing{grid-column:1;grid-row:3}
+  .school-record-action{grid-column:2;grid-row:2/4}
+}
+@media(max-width:740px){
+  .platform-sidebar{position:sticky;inset:0 0 auto 0;z-index:5;padding:10px 14px 8px}
+  .platform-brand{padding:0 4px 9px;font-size:16px}
+  .workspace-label,.sidebar-note{display:none}
+  .platform-nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:1px}
+  .platform-nav-item{flex:1;min-width:0;justify-content:center;gap:6px;padding:8px 10px;min-height:40px}
+  .platform-nav-item>span:first-child{width:auto;font-size:15px}
+  .platform-nav-item b{font-size:11px}
+  .platform-nav-item small{display:none}
+  .platform-nav-item .nav-count{min-width:18px;height:18px;margin-left:0;font-size:9px}
+  .account-button{top:12px;right:13px;width:auto;max-width:45%;padding:0}
+  .account-button>span:nth-child(2){display:none}
+  .logout-mark{padding:0 5px;font-size:15px}
+  .page-intro{gap:13px}
+  .page-intro h1{font-size:26px}
+  .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .metric-card{min-width:0;align-items:flex-start;flex-direction:column;gap:6px;padding:10px}
+  .metric-card small{font-size:8px}
+  .metric-card strong{font-size:17px}
+  .institution-filters{gap:4px;padding:10px 12px}
+  .filter-chip{padding:6px 8px;font-size:10px}
+  .school-list{overflow:visible}
+  .school-record{grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:14px 13px}
+  .school-record-main{grid-column:1/-1}
+  .school-record-plan,.school-record-billing{padding-left:52px}
+  .school-record-action{grid-column:2;grid-row:2/4}
+  .school-record-title{align-items:flex-start;flex-direction:column;gap:5px}
+  .school-record-identity p{font-size:9px}
+  .school-record-plan>small,.school-record-billing>small{font-size:7px}
+  .billing-card{padding:15px}
+  .billing-grid{gap:10px}
+  .billing-generate{grid-template-columns:1fr}
+  .manage-facts{grid-template-columns:1fr 1fr}
+  .manage-facts>div:last-child{grid-column:1/-1}
+  .manage-section{align-items:flex-start;flex-direction:column}
+  .charge-summary{white-space:normal}
+  .charge-tools{width:100%;align-items:stretch;flex-direction:column;gap:8px}
+  .charge-tools .search-field{width:100%}
+  .request-details{grid-template-columns:1fr;gap:13px}
+  .request-card-top{flex-direction:column}
+  .request-actions{align-items:stretch;flex-direction:column}
+  .request-actions>*{width:100%;text-align:center}
+}

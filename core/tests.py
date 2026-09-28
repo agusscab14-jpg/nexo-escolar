@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlsplit
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ from .models import (
     Loan, Membership, Notice, NoticeRead, Offering, PlanYear, PlatformBillingSettings,
     PlatformPriceChange, School, SchoolEvent, SchoolSubscription, Section,
     Student, StudentGuardian, Subject, SubscriptionCharge, SubscriptionPlan, TeacherAssignment, User,
+    SchoolSignupRequest,
 )
 
 
@@ -603,3 +605,155 @@ class SchoolApiTestCase(TestCase):
         self.assertEqual(StudentGuardian.objects.filter(school=self.school_a, guardian=guardian).count(), 2)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(Membership.objects.get(school=self.school_a, user=guardian).role, Membership.Role.GUARDIAN)
+
+
+class SchoolSignupFlowTestCase(TestCase):
+    def setUp(self):
+        PlatformBillingSettings.objects.create(pk=1, basic_monthly_amount_ars="125000.00",
+            pro_monthly_amount_ars="200000.00", onboarding_amount_ars="80000.00")
+        self.platform_admin = User.objects.create_superuser(email="nexo@nexo.test", password="strong-test-password",
+            name="Nexo")
+
+    def signup_payload(self, **overrides):
+        payload = {"school_name": "Escuela Nueva", "school_type": "technical", "jurisdiction": "Córdoba",
+            "contact_name": "Directora Nueva", "contact_email": "directora@escuela.test",
+            "contact_phone": "+54 9 351 123 4567", "plan": "pro", "website": ""}
+        payload.update(overrides)
+        return payload
+
+    def create_signup(self, **overrides):
+        return self.client.post("/api/v1/public/school-signups/", data=json.dumps(self.signup_payload(**overrides)),
+            content_type="application/json")
+
+    def verify_latest_signup(self):
+        verify_url = next(line for line in mail.outbox[-1].body.splitlines() if line.startswith("http://"))
+        path = urlsplit(verify_url).path
+        preview = self.client.get(path)
+        self.assertEqual(preview.status_code, 200)
+        signup = SchoolSignupRequest.objects.get()
+        self.assertEqual(signup.state, SchoolSignupRequest.State.EMAIL_PENDING)
+        response = self.client.post(path)
+        self.assertEqual(response.status_code, 302)
+        signup.refresh_from_db()
+        self.assertEqual(signup.state, SchoolSignupRequest.State.VERIFIED)
+        return signup
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", NEXO_WHATSAPP_NUMBER="+54 9 11 1234 5678")
+    def test_public_request_is_isolated_until_email_verification_and_whatsapp_link_is_prefilled(self):
+        page = self.client.get("/registro/")
+        self.assertContains(page, "Básico")
+        self.assertContains(page, "Pro")
+        self.assertContains(page, "280000.00")
+        response = self.create_signup()
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(SchoolSignupRequest.objects.count(), 1)
+        self.assertEqual(School.objects.count(), 0)
+        self.assertEqual(SchoolSubscription.objects.count(), 0)
+        self.assertEqual(SubscriptionCharge.objects.count(), 0)
+        signup = self.verify_latest_signup()
+        result = self.client.get(f"/registro/solicitud/{signup.id}/")
+        self.assertEqual(result.status_code, 200)
+        whatsapp_url = result.context["whatsapp_url"]
+        parsed = urlsplit(whatsapp_url)
+        from urllib.parse import parse_qs
+        self.assertEqual(parsed.netloc, "wa.me")
+        self.assertEqual(parsed.path, "/5491112345678")
+        message = parse_qs(parsed.query)["text"][0]
+        self.assertIn(str(signup.id), message)
+        self.assertIn("Escuela Nueva", message)
+        self.assertIn("Pro", message)
+        self.assertIn("280000.00", str(result.context["initial_total_ars"]))
+        self.assertEqual(self.client.get(urlsplit(next(line for line in mail.outbox[0].body.splitlines() if line.startswith("http://"))).path).status_code, 410)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_honeypot_validation_and_ip_email_throttles_do_not_create_extra_requests(self):
+        response = self.create_signup(website="bot-filled-this")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(SchoolSignupRequest.objects.count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(self.create_signup(contact_email="invalid-address").status_code, 400)
+        self.assertEqual(SchoolSignupRequest.objects.count(), 0)
+        for index in range(3):
+            response = self.create_signup(school_name=f"Escuela {index}")
+            self.assertEqual(response.status_code, 202)
+        limited = self.create_signup(school_name="Escuela cuarta")
+        self.assertEqual(limited.status_code, 429)
+        self.assertEqual(SchoolSignupRequest.objects.count(), 3)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_only_platform_admin_can_convert_verified_request_once(self):
+        self.create_signup()
+        signup = SchoolSignupRequest.objects.get()
+        unauthorized = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/approve/", data="{}",
+            content_type="application/json")
+        self.assertEqual(unauthorized.status_code, 403)
+        self.client.force_login(self.platform_admin)
+        unverified = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/approve/", data="{}",
+            content_type="application/json")
+        self.assertEqual(unverified.status_code, 400)
+        self.assertEqual(School.objects.count(), 0)
+        signup = self.verify_latest_signup()
+        approved = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/approve/", data="{}",
+            content_type="application/json")
+        self.assertEqual(approved.status_code, 201)
+        school = School.objects.get()
+        self.assertEqual(school.state, School.State.ONBOARDING)
+        self.assertEqual(school.subscription.plan, SubscriptionPlan.PRO)
+        self.assertEqual(school.subscription.monthly_amount_ars, signup.monthly_quote_ars)
+        self.assertEqual(school.subscription.onboarding_amount_ars, signup.onboarding_quote_ars)
+        self.assertEqual(school.subscription.charges.count(), 2)
+        self.assertEqual(Membership.objects.filter(school=school).count(), 0)
+        duplicate = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/approve/", data="{}",
+            content_type="application/json")
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(School.objects.count(), 1)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_requoted_request_activates_school_and_invites_school_admin_after_both_payments(self):
+        self.create_signup()
+        signup = self.verify_latest_signup()
+        signup.quote_expires_at = timezone.now() - timedelta(days=1)
+        signup.save(update_fields=("quote_expires_at",))
+        self.client.force_login(self.platform_admin)
+        approve_url = f"/api/v1/platform/school-signups/{signup.id}/approve/"
+        expired = self.client.post(approve_url, data="{}", content_type="application/json")
+        self.assertEqual(expired.status_code, 400)
+        self.assertEqual(School.objects.count(), 0)
+        requote = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/requote/",
+            data=json.dumps({"whatsapp_confirmed": True}), content_type="application/json")
+        self.assertEqual(requote.status_code, 200)
+        self.assertEqual(self.client.post(approve_url, data="{}", content_type="application/json").status_code, 201)
+        subscription = SchoolSubscription.objects.get()
+        charges = list(subscription.charges.order_by("kind"))
+        for index, charge in enumerate(charges):
+            response = self.client.patch(f"/api/v1/platform/billing/charges/{charge.id}/", data=json.dumps({
+                "state": "paid", "transfer_reference": f"TRANSFER-{index}"}), content_type="application/json")
+            self.assertEqual(response.status_code, 200)
+            if index == 0:
+                self.assertFalse(response.json()["school_activated"])
+                self.assertEqual(subscription.school.state, School.State.ONBOARDING)
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.state, SchoolSubscription.State.ACTIVE)
+        self.assertEqual(subscription.school.state, School.State.ACTIVE)
+        director = User.objects.get(email="directora@escuela.test")
+        self.assertEqual(Membership.objects.get(school=subscription.school, user=director).role, Membership.Role.SCHOOL_ADMIN)
+        self.assertFalse(director.has_usable_password())
+        self.assertEqual(len(mail.outbox), 2)  # verification and director invitation
+        self.assertIn("/accounts/reset/", mail.outbox[-1].body)
+
+    def test_expired_requests_are_purged_and_missing_whatsapp_number_has_no_broken_link(self):
+        response = self.create_signup(contact_email="otra@escuela.test")
+        self.assertEqual(response.status_code, 202)
+        signup = SchoolSignupRequest.objects.get()
+        SchoolSignupRequest.objects.filter(pk=signup.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.client.get("/registro/")
+        self.assertFalse(SchoolSignupRequest.objects.filter(pk=signup.pk).exists())
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", NEXO_WHATSAPP_NUMBER="")
+    def test_verified_request_without_whatsapp_configuration_shows_no_dead_link(self):
+        self.create_signup()
+        signup = self.verify_latest_signup()
+        result = self.client.get(f"/registro/solicitud/{signup.id}/")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.context["whatsapp_url"], "")
+        self.assertNotContains(result, "https://wa.me/")

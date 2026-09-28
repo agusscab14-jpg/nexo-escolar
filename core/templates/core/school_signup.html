@@ -1,0 +1,78 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183d37"><title>Registrar una escuela · Nexo Escolar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/school-signup.css' %}">
+</head>
+<body>
+  <main class="signup-shell">
+    <a class="brand" href="/" aria-label="Volver al inicio de Nexo"><span class="brand-mark">n</span><span>Nexo<span class="brand-light">Escolar</span></span></a>
+    <header class="signup-intro"><span class="eyebrow">PARA EQUIPOS DIRECTIVOS</span><h1>Sumá tu escuela a Nexo</h1><p>Dejanos tus datos y elegí el plan. Verificamos tu correo antes de conversar el alta; todavía no se crea una cuenta ni se realizan cobros.</p></header>
+    <form id="signup-form" class="signup-card" novalidate>
+      <div class="section-title"><span>1</span><div><h2>Datos de la escuela</h2><p>La solicitud es para una institución nueva.</p></div></div>
+      <label>Nombre de la escuela<input name="school_name" maxlength="180" required autocomplete="organization" placeholder="Ej. Escuela Secundaria del Centro"></label>
+      <div class="form-grid">
+        <label>Tipo de escuela<select name="school_type" required><option value="">Elegí una opción</option><option value="common">Secundaria común</option><option value="technical">Secundaria técnica</option></select></label>
+        <label>Provincia o jurisdicción<input name="jurisdiction" maxlength="120" placeholder="Ej. Buenos Aires"></label>
+      </div>
+
+      <div class="section-title section-spaced"><span>2</span><div><h2>Datos del director o directora</h2><p>Será la persona administradora de la escuela.</p></div></div>
+      <label>Nombre y apellido<input name="contact_name" maxlength="180" required autocomplete="name" placeholder="Tu nombre"></label>
+      <div class="form-grid">
+        <label>Correo electrónico<input name="contact_email" type="email" maxlength="254" required autocomplete="email" placeholder="nombre@escuela.edu.ar"></label>
+        <label>Teléfono de contacto<input name="contact_phone" type="tel" maxlength="40" required autocomplete="tel" placeholder="+54 9 11 1234 5678"></label>
+      </div>
+
+      <div class="section-title section-spaced"><span>3</span><div><h2>Elegí un plan</h2><p>Los importes iniciales incluyen el primer mes y alta/capacitación.</p></div></div>
+      {% if plans %}
+        <div class="plan-options">
+          {% for plan in plans %}
+          <label class="plan-option"><input type="radio" name="plan" value="{{ plan.id }}" {% if forloop.first %}checked{% endif %} required><span class="plan-box"><b>{{ plan.label }}</b><small>{{ plan.monthly }} ARS por mes</small><small>Alta y capacitación: {{ plan.onboarding }} ARS</small><strong>Total inicial: {{ plan.initial_total }} ARS</strong></span></label>
+          {% endfor %}
+        </div>
+        <p class="quote-note">La cotización se mantiene durante 7 días. El pago se coordina manualmente con Nexo por WhatsApp; esta solicitud no procesa ni confirma transferencias.</p>
+      {% else %}
+        <div class="notice">Los planes todavía no están disponibles. Escribinos para coordinar el alta.</div>
+      {% endif %}
+
+      <label class="honeypot" aria-hidden="true">Dejá este campo vacío<input name="website" tabindex="-1" autocomplete="off"></label>
+      <button class="submit-button" type="submit" {% if not plans %}disabled{% endif %}>Enviar solicitud y verificar correo <span>↗</span></button>
+      <div id="signup-message" class="form-message" role="status" aria-live="polite"></div>
+      <p class="privacy-note">Solo Nexo revisará esta solicitud. No se crea una escuela hasta que verifiques el correo y Nexo apruebe el alta.</p>
+    </form>
+    <footer>¿Ya tenés cuenta? <a href="/">Volver al inicio de sesión</a></footer>
+  </main>
+  {{ plans|json_script:"signup-plans" }}
+  <script>
+    (() => {
+      const form = document.querySelector("#signup-form");
+      const message = document.querySelector("#signup-message");
+      const button = form.querySelector("button[type=submit]");
+      const csrf = () => document.cookie.split(";").map(x => x.trim()).find(x => x.startsWith("csrftoken="))?.split("=")[1] || "";
+      form.addEventListener("submit", async event => {
+        event.preventDefault(); message.textContent = ""; message.className = "form-message";
+        if (!form.reportValidity()) return;
+        const values = Object.fromEntries(new FormData(form).entries());
+        button.disabled = true; button.textContent = "Enviando…";
+        try {
+          const response = await fetch("/api/v1/public/school-signups/", {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json", "X-CSRFToken":csrf()}, body:JSON.stringify(values)});
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "No se pudo enviar la solicitud.");
+          form.reset();
+          message.textContent = result.message || "Si los datos son válidos, te enviaremos un correo para verificar la dirección.";
+          message.classList.add("success");
+        } catch (error) {
+          message.textContent = error.message;
+          message.classList.add("error");
+        } finally {
+          button.disabled = false; button.innerHTML = 'Enviar solicitud y verificar correo <span>↗</span>';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

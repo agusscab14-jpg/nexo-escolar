@@ -285,3 +285,70 @@ html[data-school-theme] .school-theme-options{grid-template-columns:repeat(auto-
 @media(max-width:760px){.help-center{gap:14px}.help-center-hero{padding:19px;gap:10px}.help-center-hero h2{font-size:19px}.help-hero-mark{width:52px;height:52px;font-size:26px}.help-guide-grid{grid-template-columns:1fr;gap:9px}.help-guide-card{padding:14px}.help-section-heading{align-items:flex-start;flex-direction:column;gap:6px}.help-contact{align-items:flex-start;flex-wrap:wrap;padding:14px}.help-contact>div{width:calc(100% - 54px)}.help-contact>.button{margin-left:51px}}
 .help-search-wrap{display:grid;gap:6px}.help-search{display:flex;align-items:center;gap:10px;max-width:580px;padding:0 13px;border:1px solid var(--line);border-radius:9px;background:var(--white);color:#84918a}.help-search>span{font-size:17px}.help-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);padding:11px 0;font-size:12px}.help-search-wrap>p{margin:0;color:#85918b;font-size:10px}.help-guide-grid{grid-template-columns:1fr}.help-guide-card{display:block;padding:0;overflow:hidden}.help-guide-summary{display:flex;align-items:center;gap:12px;padding:14px 16px;list-style:none;cursor:pointer}.help-guide-summary::-webkit-details-marker{display:none}.help-guide-title-wrap{display:grid;flex:1;gap:4px;min-width:0}.help-guide-title-wrap b{font:700 13px var(--display);color:var(--ink)}.help-guide-title-wrap small{color:#85918b;font-size:10px}.help-guide-toggle{color:#527a60;font-size:19px;transition:transform .18s}.help-guide-card[open] .help-guide-toggle{transform:rotate(45deg)}.help-guide-body{display:grid;gap:13px;padding:0 17px 17px;border-top:1px solid #edf1ee}.help-guide-intro,.help-guide-before,.help-guide-tip{padding:12px 14px;border-radius:9px;background:#f6f9f6}.help-guide-before{background:#f8f7f3}.help-guide-tip{border-left:3px solid #78a687;background:#f1f7f2}.help-guide-intro b,.help-guide-before b,.help-guide-tip b{font-size:11px;color:#45654f}.help-guide-intro p,.help-guide-before p,.help-guide-tip p{margin:5px 0 0;color:#6e7e75;font-size:11px;line-height:1.6}.help-guide-steps{list-style:none;margin:1px 0;padding:0;gap:12px}.help-guide-steps li{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:start;gap:10px;padding:0}.help-step-number{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#e8f1eb;color:#426d53;font:700 11px var(--display)}.help-guide-steps li>div{min-width:0}.help-guide-steps li b{display:block;margin:2px 0 4px;color:#35473e;font-size:11px}.help-guide-steps li p{margin:0;color:#788780;font-size:11px;line-height:1.6}.help-guide-visual{margin:1px 0 0;padding:9px;border:1px solid #e6ece8;border-radius:11px;background:#f8faf8}.help-guide-visual img{display:block;width:100%;height:auto;border-radius:7px}.help-guide-visual figcaption{margin:7px 2px 0;color:#87938d;font-size:9px;line-height:1.5}.help-guide-link{justify-self:start}.help-guide-link span{margin-left:6px}.help-faq-item[hidden],.help-guide-card[hidden]{display:none!important}.help-search-empty{margin:0;padding:13px 15px;border:1px dashed #ccd8cf;border-radius:9px;color:#6f7f75;font-size:12px}.help-faq-item summary{list-style:none}.help-faq-item summary::-webkit-details-marker{display:none}
 @media(max-width:760px){.help-search{max-width:none}.help-guide-summary{padding:13px}.help-guide-body{padding:0 12px 13px;gap:11px}.help-guide-visual{padding:5px}.help-guide-visual figcaption{font-size:8px}.help-faq-item{padding:0 12px}.help-faq-item summary{min-height:48px}.help-contact{gap:10px}}
+
+/* Password recovery */
+.password-reset-page{min-height:100vh;background:#fff}
+.password-reset-shell{min-height:100vh}
+.password-reset-art{padding-top:42px;padding-bottom:38px}
+.reset-brand{text-decoration:none;color:#fff}
+.reset-copy{position:relative;z-index:1;margin:auto 0;max-width:520px}
+.reset-copy h1{font:600 calc(clamp(36px,4.2vw,57px) + var(--nexo-font-adjust, 1.2px))/1.12 var(--display);letter-spacing:-2.4px;margin:19px 0}
+.reset-copy h1 em{font-style:normal;color:#d9b47d}
+.reset-copy p{color:#c4d7ce;font-size:calc(15px + var(--nexo-font-adjust, 1.2px));max-width:390px;line-height:1.75;margin:0}
+.reset-assurance{display:flex;align-items:center;gap:12px;margin-top:36px;padding:14px 15px;max-width:355px;border:1px solid rgba(255,255,255,.13);border-radius:11px;background:rgba(255,255,255,.045)}
+.reset-assurance-icon{width:37px;height:37px;display:grid;place-items:center;flex:none;border-radius:10px;background:rgba(217,180,125,.15);color:#e4c38f;font-size:19px}
+.reset-assurance strong,.reset-assurance small{display:block}
+.reset-assurance strong{color:#eef5f0;font-size:12px}
+.reset-assurance small{color:#a9c1b5;font-size:10px;line-height:1.5;margin-top:4px}
+.password-reset-art .art-foot span{padding:0 7px}
+.reset-inner{max-width:410px}
+.reset-back{display:inline-flex;align-items:center;gap:9px;margin-bottom:38px;color:#6f8279;text-decoration:none;font-size:12px;font-weight:600;transition:color .15s}
+.reset-back:hover{color:var(--green)}
+.reset-back span{font-size:18px;line-height:1}
+.reset-inner h2{margin-top:13px}
+.reset-description{line-height:1.65;margin:0 0 26px}
+.reset-form{display:grid;gap:20px}
+.reset-field{display:grid;gap:8px}
+.reset-field label{font-weight:600;font-size:calc(12px + var(--nexo-font-adjust, 1.2px))}
+.reset-field input{width:100%;border:1px solid #dfe7e3;border-radius:9px;padding:13px;color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
+.reset-field input:focus{border-color:#699281;box-shadow:0 0 0 3px #e8f2ed}
+.reset-field input[aria-invalid="true"]{border-color:#bd6c61}
+.reset-field input::placeholder{color:#a3afaa}
+.reset-submit{margin-top:2px}
+.reset-submit span{font-size:15px}
+.reset-errors{margin:0;padding:0;list-style:none;color:#a14f47;font-size:12px;line-height:1.5}
+.reset-errors li+li{margin-top:3px}
+.reset-privacy{display:flex;align-items:flex-start;gap:8px;margin:18px 0 0;color:#87948e;font-size:11px;line-height:1.55}
+.reset-privacy span{color:#54806b;font-size:14px;line-height:1}
+.reset-inner .login-bottom{margin-top:48px}
+@media(max-width:760px){
+  .password-reset-art{min-height:252px;padding:25px 25px 22px}
+  .reset-copy{margin:27px 0 0}
+  .reset-copy h1{font-size:calc(32px + var(--nexo-font-adjust, 1.2px));letter-spacing:-1.5px;margin:10px 0 8px}
+  .reset-copy p{font-size:12px;line-height:1.55;max-width:430px}
+  .reset-assurance,.password-reset-art .art-foot{display:none}
+  .reset-back{margin-bottom:28px}
+  .reset-inner .login-bottom{margin-top:30px}
+}
+.reset-result{display:flex;flex-direction:column;align-items:flex-start}
+.reset-result-icon{display:grid;place-items:center;width:46px;height:46px;margin-bottom:19px;border-radius:14px;background:#edf4ef;color:#47745a;font-size:21px}
+.reset-result-icon-warning{background:#fbf2e7;color:#9b7040}
+.reset-result-icon-success{background:#e8f4eb;color:#477d55}
+.reset-result .eyebrow{display:block}
+.reset-result h2{margin:10px 0 8px}
+.reset-result .reset-description{margin:0 0 22px}
+.reset-note{display:flex;align-items:flex-start;gap:9px;width:100%;margin:0 0 21px;padding:12px 13px;border:1px solid #e7eee9;border-radius:9px;background:#f7f9f7;color:#75847c}
+.reset-note>span{display:grid;place-items:center;width:17px;height:17px;flex:none;border-radius:50%;background:#e5eee8;color:#4c765e;font-size:11px;font-weight:700}
+.reset-note p{margin:0;font-size:10px;line-height:1.55}
+.reset-action{text-decoration:none}
+.reset-secondary-link{align-self:center;margin-top:17px;color:#527c62;text-decoration:none;font-size:11px;font-weight:700}
+.reset-secondary-link:hover{text-decoration:underline}
+.reset-password-help{color:#829088;font-size:10px;line-height:1.55}
+.reset-password-help ul{display:grid;gap:3px;margin:6px 0 0;padding-left:17px}
+.reset-inner .reset-form{margin-top:0}
+.login-inner .signup-login-link{color:#25654d;font-size:calc(12px + var(--nexo-font-adjust, 1.2px));font-weight:700;text-align:left;text-decoration:none}
+.login-inner .signup-login-link:hover{text-decoration:underline}
+@media(max-width:760px){
+  .reset-result-icon{width:42px;height:42px;margin-bottom:15px}
+  .reset-note{padding:11px}
+}

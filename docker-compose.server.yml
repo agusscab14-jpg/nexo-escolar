@@ -1,0 +1,17 @@
+services:
+  app:
+    environment:
+      DJANGO_SECURE_COOKIES: "0"
+      DJANGO_SECURE_SSL_REDIRECT: "0"
+      DJANGO_HSTS_SECONDS: "0"
+      DJANGO_ALLOWED_HOSTS: "186.0.171.84,localhost,127.0.0.1"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "http://186.0.171.84:8014"
+      DJANGO_EMAIL_BACKEND: ${DJANGO_EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  caddy:
+    ports: !override
+      - "0.0.0.0:8014:80"
+    volumes: !override
+      - ./Caddyfile.server:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - collected-static:/srv/nexo-static:ro

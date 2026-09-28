@@ -1,0 +1,5 @@
+{% load static %}
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Verificá tu correo · Nexo Escolar</title><link rel="stylesheet" href="{% static 'css/school-signup.css' %}"></head>
+<body><main class="message-shell"><a class="brand" href="/"><span class="brand-mark">n</span><span>Nexo<span class="brand-light">Escolar</span></span></a>
+{% if valid %}<section class="message-card"><span class="message-icon">✓</span><span class="eyebrow">CONFIRMACIÓN DE CORREO</span><h1>Verificá que esta dirección sea tuya</h1><p>Al confirmar, tu solicitud quedará disponible para revisión de Nexo. Todavía no se crea una escuela ni se generan cargos.</p><form method="post">{% csrf_token %}<button class="submit-button">Verificar correo</button></form></section>
+{% else %}<section class="message-card"><span class="message-icon muted-icon">!</span><h1>Este enlace venció o ya se usó</h1><p>Volvé al registro para enviar una solicitud nueva.</p><a class="submit-button link-button" href="/registro/">Ir al registro</a></section>{% endif %}</main></body></html>

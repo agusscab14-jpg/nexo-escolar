@@ -12,3 +12,8 @@ __pycache__
 backups
 collected-static
 .env
+.env.local
+**/.venv
+**/venv
+*.zip
+nexo-escolar/
