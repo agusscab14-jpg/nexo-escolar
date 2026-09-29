@@ -878,6 +878,8 @@ def api_grades(request):
             period = AcademicPeriod.objects.get(school=school, pk=data["period_id"])
         else:
             period = AcademicPeriod.objects.get(school=school, name=data["period"], year=int(data.get("year", timezone.localdate().year)))
+        if period.year != enrollment.academic_year:
+            raise ValueError("El período debe pertenecer al ciclo lectivo de la inscripción activa.")
         scale = GradingScale.objects.filter(school=school).first()
         value = float(data["grade"])
         if scale and not float(scale.minimum) <= value <= float(scale.maximum):
@@ -1624,8 +1626,7 @@ def api_enrollments(request):
         if academic_year!=section.academic_year:raise ValueError("El ciclo lectivo debe coincidir con el de la comisión.")
         enrollment,created=Enrollment.objects.update_or_create(school=school,student=student,academic_year=academic_year,
             defaults={"section":section,"state":Enrollment.State.ACTIVE,"started_at":timezone.localdate(),"ended_at":None})
-        if created:
-            Enrollment.objects.filter(school=school,student=student,state=Enrollment.State.ACTIVE,academic_year__lt=academic_year).exclude(pk=enrollment.pk).update(state=Enrollment.State.PROMOTED,ended_at=timezone.localdate())
+        Enrollment.objects.filter(school=school,student=student,state=Enrollment.State.ACTIVE,academic_year__lt=academic_year).exclude(pk=enrollment.pk).update(state=Enrollment.State.PROMOTED,ended_at=timezone.localdate())
         audit(request,"Inscripción",f"{student.name} · {section.name or section.plan_year.year_label} · {academic_year}")
         return JsonResponse(serialize_enrollment(enrollment),status=201 if created else 200)
     except (KeyError,ValueError,TypeError,Student.DoesNotExist,Section.DoesNotExist,IntegrityError) as exc:return error(exc)
