@@ -78,3 +78,5 @@ body{font-size:18px}
   .footer-links b,.footer-links a{font-size:11px}
   .footer-bottom{font-size:9px}
 }
+/* Keep the hero title aligned after removing the school-type eyebrow. */
+.hero h1{margin-top:0}
