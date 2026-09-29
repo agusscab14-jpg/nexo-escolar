@@ -6,10 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#183d37">
   <title>Nexo Escolar · Administración de plataforma</title>
+  <script>
+    try {
+      if (localStorage.getItem("nexo-platform-admin-theme") === "dark") {
+        document.documentElement.dataset.theme = "dark";
+      }
+    } catch {}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/platform-admin.css' %}?v=5">
+  <link rel="stylesheet" href="{% static 'css/platform-admin.css' %}?v=6">
 </head>
 <body>
   <div class="platform-layout">
@@ -38,7 +45,13 @@
     <main class="platform-main">
       <header class="platform-topbar">
         <span class="topbar-context"><span class="online-dot"></span> Administración de Nexo Escolar</span>
-        <span class="secure-label"><span aria-hidden="true">⌑</span> Acceso protegido</span>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar a modo oscuro" aria-pressed="false" title="Cambiar a modo oscuro">
+            <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+            <span class="theme-toggle-text">Modo oscuro</span>
+          </button>
+          <span class="secure-label"><span aria-hidden="true">⌑</span> Acceso protegido</span>
+        </div>
       </header>
 
       <div class="platform-content">
@@ -98,8 +111,10 @@
               <p>Estos importes se usan al registrar una nueva escuela.</p>
               <label>Abono mensual · Básico (ARS)<input id="basic-monthly-amount" name="basic_monthly_amount_ars" type="number" min="0.01" step="0.01" required></label>
               <label>Abono mensual · Pro (ARS)<input id="pro-monthly-amount" name="pro_monthly_amount_ars" type="number" min="0" step="0.01" aria-describedby="pro-price-hint"></label>
+              <label>Renovación · Básico (ARS)<input id="basic-renewal-amount" name="basic_renewal_amount_ars" type="number" min="0.01" step="0.01" required></label>
+              <label>Renovación · Pro (ARS)<input id="pro-renewal-amount" name="pro_renewal_amount_ars" type="number" min="0.01" step="0.01" required></label>
               <small id="pro-price-hint" class="form-hint">Usá 0 si todavía no ofrecés el plan Pro.</small>
-              <label>Alta y capacitación (ARS)<input id="onboarding-amount" name="onboarding_amount_ars" type="number" min="0.01" step="0.01" required></label>
+              <label>Alta por autoservicio (ARS; 0 = gratis)<input id="onboarding-amount" name="onboarding_amount_ars" type="number" min="0" step="0.01" required></label>
               <button class="primary-button" type="submit" id="save-pricing-button">Guardar precios</button>
               <small id="pricing-lock-note" class="form-hint"></small>
             </form>
@@ -138,6 +153,6 @@
   </div>
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="{% static 'js/platform-admin.js' %}?v=5"></script>
+  <script src="{% static 'js/platform-admin.js' %}?v=6"></script>
 </body>
 </html>

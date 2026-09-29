@@ -152,3 +152,144 @@ html{scroll-behavior:smooth}.billing-section{margin-top:52px;scroll-margin-top:2
   .request-actions{align-items:stretch;flex-direction:column}
   .request-actions>*{width:100%;text-align:center}
 }
+
+.manage-delete-zone{margin-top:17px;padding:14px 0 0;border-top:1px solid #f0e7e5}
+.manage-delete-zone h3{margin:0 0 5px;color:#744d47;font:700 12px var(--display)}
+.manage-delete-zone p{margin:0 0 10px;color:#89948e;font-size:10px;line-height:1.55}
+.delete-warning{margin:0 0 17px;padding:13px 14px;border:1px solid #ecd9d5;border-radius:9px;background:#fcf5f3;color:#7e554e;font-size:11px;line-height:1.55}
+.delete-warning p{margin:5px 0 0;color:#896e69}
+.delete-school-modal .school-form{gap:12px}
+.delete-school-modal .school-form input{width:100%;padding:10px 11px;border:1px solid #dde6df;border-radius:8px;background:#fff;color:var(--ink);outline:0;font-size:12px}
+.delete-school-modal .school-form input:focus{border-color:#83a68e;box-shadow:0 0 0 3px #edf4ef}
+.delete-error{min-height:0;margin:0;color:#a04c42;font-size:11px}
+/* Platform admin dark theme */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e5ece8;
+  --muted: #a2b0a8;
+  --line: #304038;
+  --paper: #111815;
+  --green: #367451;
+  --green-dark: #dce9e0;
+  --green-soft: #24382c;
+  --amber: #dbb775;
+  --amber-soft: #3a3020;
+  --blue: #a5bfd3;
+  --blue-soft: #24333e;
+  --shadow: 0 10px 28px rgba(0,0,0,.2);
+}
+html[data-theme="dark"] body { background:var(--paper); color:var(--ink); }
+html[data-theme="dark"] .platform-sidebar,
+html[data-theme="dark"] .platform-topbar,
+html[data-theme="dark"] .metric-card,
+html[data-theme="dark"] .institutions-panel,
+html[data-theme="dark"] .school-record,
+html[data-theme="dark"] .billing-card,
+html[data-theme="dark"] .signup-request-card,
+html[data-theme="dark"] .modal-card { background:#19231e; color:var(--ink); }
+html[data-theme="dark"] .platform-sidebar { border-color:var(--line); }
+html[data-theme="dark"] .brand-light { color:#9bb3a4; }
+html[data-theme="dark"] .workspace-label { color:#9aaa9f; }
+html[data-theme="dark"] .platform-nav-item { color:#b5c2bb; }
+html[data-theme="dark"] .platform-nav-item.active { color:#a8d4b5; background:#24382c; }
+html[data-theme="dark"] .platform-nav-item small,
+html[data-theme="dark"] .platform-nav-item.active small { color:#9caf9f; }
+html[data-theme="dark"] .sidebar-note { border-color:#304238; background:#1e2a23; }
+html[data-theme="dark"] .note-mark,
+html[data-theme="dark"] .account-avatar { background:#2a4032; color:#abd2b5; }
+html[data-theme="dark"] .account-button { color:var(--ink); }
+html[data-theme="dark"] .topbar-context { color:#bfcbc4; }
+html[data-theme="dark"] .secure-label { color:#a4b1aa; }
+html[data-theme="dark"] .secure-label span { color:#a5c8b0; }
+.theme-toggle { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font-size:11px; font-weight:700; white-space:nowrap; }
+.theme-toggle:hover { background:var(--green-soft); }
+.theme-toggle:focus-visible { outline:2px solid #78a88a; outline-offset:2px; }
+.theme-toggle-icon { font-size:15px; line-height:1; }
+.topbar-actions { display:flex; align-items:center; gap:16px; }
+html[data-theme="dark"] .theme-toggle { border-color:#405248; color:#dce9e0; }
+html[data-theme="dark"] .theme-toggle:hover { background:#263a2e; }
+html[data-theme="dark"] .eyebrow { color:#9ac5a5; }
+html[data-theme="dark"] .primary-button { background:#347453; color:#f5fff7; }
+html[data-theme="dark"] .primary-button:hover { background:#3e825e; }
+html[data-theme="dark"] .metric-icon.green-icon { color:#a7d6b3; }
+html[data-theme="dark"] .metric-icon.amber-icon { color:#e0bd7c; }
+html[data-theme="dark"] .metric-icon.blue-icon { color:#aac7dc; }
+html[data-theme="dark"] .school-table th { background:#202c26; color:#a2b0a8; }
+html[data-theme="dark"] .school-table td { border-color:#2a3932; color:#b5c2bb; }
+html[data-theme="dark"] .school-table tbody tr:hover { background:#202c26; }
+html[data-theme="dark"] .school-initial { background:#2a4032; color:#b3d8bc; }
+html[data-theme="dark"] .school-name b,
+html[data-theme="dark"] .school-record-title h3,
+html[data-theme="dark"] .request-card-top h2 { color:#e1ebe5; }
+html[data-theme="dark"] .school-name small,
+html[data-theme="dark"] .school-record-identity>small { color:#a0afa6; }
+html[data-theme="dark"] .school-record-identity p { color:#b0beb6; }
+html[data-theme="dark"] .school-record-identity p span { color:#718078; }
+html[data-theme="dark"] .type-label { background:#29352f; color:#c1ccc5; }
+html[data-theme="dark"] .member-count { color:#c9d7ce; }
+html[data-theme="dark"] .state-trial,
+html[data-theme="dark"] .charge-state.pending { background:#3a3020; color:#e2c17f; }
+html[data-theme="dark"] .state-active,
+html[data-theme="dark"] .charge-state:not(.pending):not(.overdue):not(.void) { background:#243b2d; color:#a5d3af; }
+html[data-theme="dark"] .state-suspended,
+html[data-theme="dark"] .charge-state.overdue { background:#432c29; color:#e0a39a; }
+html[data-theme="dark"] .state-onboarding { background:#263641; color:#b1c8d7; }
+html[data-theme="dark"] .charge-state.void { background:#303a35; color:#b5c0ba; }
+html[data-theme="dark"] .action-button { border-color:#3a4b41; background:#202c26; color:#b4d5bf; }
+html[data-theme="dark"] .action-button:hover { border-color:#54735f; background:#293a30; }
+html[data-theme="dark"] .action-button.danger { color:#e0a39a; }
+html[data-theme="dark"] .action-button.danger:hover,
+html[data-theme="dark"] .danger-button:hover { border-color:#81564e; background:#3a2926; }
+html[data-theme="dark"] .empty-state strong { color:#e0e9e3; }
+html[data-theme="dark"] .spinner { border-color:#34443b; border-top-color:#8ec49c; }
+html[data-theme="dark"] .modal-card { border-color:rgba(255,255,255,.1); }
+html[data-theme="dark"] .close-modal { background:#2a3831; color:#d0dbd4; }
+html[data-theme="dark"] .school-form label,
+html[data-theme="dark"] .billing-card label { color:#c1cec6; }
+html[data-theme="dark"] .school-form input,
+html[data-theme="dark"] .school-form select,
+html[data-theme="dark"] .delete-school-modal .school-form input,
+html[data-theme="dark"] .billing-card input { border-color:#3a4b41; background:#111a16; color:var(--ink); }
+html[data-theme="dark"] .school-form input:focus,
+html[data-theme="dark"] .school-form select:focus,
+html[data-theme="dark"] .delete-school-modal .school-form input:focus,
+html[data-theme="dark"] .billing-card input:focus { border-color:#78a88a; box-shadow:0 0 0 3px rgba(120,168,138,.18); }
+html[data-theme="dark"] .billing-card input:disabled { background:#222e28; color:#9eaca4; }
+html[data-theme="dark"] .search-field { border-color:#3a4b41; color:#a9b8af; }
+html[data-theme="dark"] .search-field:focus-within { border-color:#78a88a; box-shadow:0 0 0 3px rgba(120,168,138,.18); }
+html[data-theme="dark"] .filter-chip { color:#bdc9c2; }
+html[data-theme="dark"] .filter-chip:hover { background:#25332b; }
+html[data-theme="dark"] .filter-chip.active { border-color:#45624e; background:#24382c; color:#b1d9bb; }
+html[data-theme="dark"] .filter-chip span { background:#303c35; color:#c0cbc4; }
+html[data-theme="dark"] .filter-chip.active span { background:#304b38; color:#c0e1c7; }
+html[data-theme="dark"] .scheduled-price { background:#243129; color:#c4d1c8; }
+html[data-theme="dark"] .charge-summary { background:#24382c; color:#b1d9bb; }
+html[data-theme="dark"] .charge-summary.has-overdue { background:#432c29; color:#e0a39a; }
+html[data-theme="dark"] .charge-amount { color:#e0e9e3; }
+html[data-theme="dark"] .charge-detail { color:#a4b1a9; }
+html[data-theme="dark"] .manage-facts { border-color:#304038; background:#202c26; }
+html[data-theme="dark"] .manage-facts small { color:#a2b0a8; }
+html[data-theme="dark"] .manage-facts b,
+html[data-theme="dark"] .manage-plan-line strong { color:#d3dfd7; }
+html[data-theme="dark"] .manage-section h3 { color:#e0e9e3; }
+html[data-theme="dark"] .manage-subscription { border-color:#304038; }
+html[data-theme="dark"] .manage-delete-zone { border-color:#493632; }
+html[data-theme="dark"] .manage-delete-zone h3 { color:#e0aaa1; }
+html[data-theme="dark"] .danger-button { border-color:#62443e; background:#2d211f; color:#e4aaa0; }
+html[data-theme="dark"] .delete-warning { border-color:#62443e; background:#332421; color:#edb7ae; }
+html[data-theme="dark"] .delete-warning p { color:#d1a39b; }
+html[data-theme="dark"] .request-card-top,
+html[data-theme="dark"] .request-actions { border-color:#304038; }
+html[data-theme="dark"] .request-details b { color:#cbd8d0; }
+html[data-theme="dark"] .request-details span,
+html[data-theme="dark"] .request-card-top p { color:#aebbb3; }
+html[data-theme="dark"] .request-verified { background:#243b2d; color:#a5d3af; }
+html[data-theme="dark"] .secondary-button { border-color:#3b4b42; background:#202c26; color:#d0dbd4; }
+html[data-theme="dark"] .secondary-button:hover { border-color:#536b5c; background:#293a30; }
+html[data-theme="dark"] .text-button,
+html[data-theme="dark"] .empty-state .text-button { color:#a8d4b5; }
+@media(max-width:740px) {
+  .theme-toggle { min-height:30px; padding:5px 8px; }
+  .theme-toggle-text { display:none; }
+  .topbar-actions { gap:8px; }
+}

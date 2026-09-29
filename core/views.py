@@ -3,7 +3,9 @@ import calendar
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
+import os
 import re
 import secrets
 import unicodedata
@@ -36,7 +38,7 @@ from openpyxl import Workbook, load_workbook
 
 from .models import (
     AcademicPeriod, AcademicPlan, Attendance, Audit, Book, Claim, Course,
-    Enrollment, Grade, GradingScale, ImportBatch, LostItem, Loan, Membership,
+    Enrollment, Grade, GradingScale, ImportBatch, LoginThrottle, LostItem, Loan, Membership,
     Notice, NoticeRead, Offering, PlanSubject, PlanYear, PlatformBillingSettings,
     PlatformPriceChange, School, SchoolEvent, SchoolSignupRequest, SchoolSubscription, Section, SubscriptionPlan,
     Student, StudentGuardian, Subject, SubscriptionCharge, TeacherAssignment, User,
@@ -322,6 +324,85 @@ def platform_admin(request):
     return render(request, "core/platform_admin.html", {"name": request.user.name})
 
 
+LOGIN_THROTTLE_WINDOW = timedelta(minutes=15)
+LOGIN_THROTTLE_LIMITS = {"ip": 60, "email": 10, "pair": 10}
+
+
+def client_ip(request):
+    # Caddy overwrites X-Forwarded-For with its direct peer address. Locally,
+    # Django falls back to REMOTE_ADDR.
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    for candidate in (forwarded.split(",", 1)[0].strip(), request.META.get("REMOTE_ADDR", "")):
+        try:
+            return str(ipaddress.ip_address(candidate))
+        except ValueError:
+            continue
+    return "unknown"
+
+
+def login_attempt_keys(request, email):
+    ip = client_ip(request)
+    normalized_email = email.strip().casefold()
+    values = {
+        "ip": ip,
+        "email": normalized_email,
+        "pair": f"{ip}\0{normalized_email}",
+    }
+    return {
+        bucket: hmac.new(
+            settings.SECRET_KEY.encode("utf-8"),
+            f"nexo-login:{bucket}:{value}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        for bucket, value in values.items()
+    }
+
+
+def login_retry_after(request, email, now=None):
+    now = now or timezone.now()
+    LoginThrottle.objects.filter(window_started_at__lt=now - timedelta(days=1)).delete()
+    retry_after = 0
+    keys = login_attempt_keys(request, email)
+    for bucket, limit in LOGIN_THROTTLE_LIMITS.items():
+        row = LoginThrottle.objects.filter(key_digest=keys[bucket]).only(
+            "attempts", "window_started_at"
+        ).first()
+        if not row or row.attempts < limit:
+            continue
+        expires_at = row.window_started_at + LOGIN_THROTTLE_WINDOW
+        if expires_at > now:
+            remaining = (expires_at - now).total_seconds()
+            retry_after = max(retry_after, int(remaining + 0.999))
+    return retry_after
+
+
+def record_login_failure(request, email, now=None):
+    now = now or timezone.now()
+    keys = login_attempt_keys(request, email)
+    with transaction.atomic():
+        for digest in keys.values():
+            row, _ = LoginThrottle.objects.get_or_create(
+                key_digest=digest,
+                defaults={"attempts": 0, "window_started_at": now},
+            )
+            row = LoginThrottle.objects.select_for_update().get(pk=row.pk)
+            if row.window_started_at + LOGIN_THROTTLE_WINDOW <= now:
+                row.window_started_at = now
+                row.attempts = 0
+            row.attempts += 1
+            row.save(update_fields=("attempts", "window_started_at"))
+        LoginThrottle.objects.filter(
+            window_started_at__lt=now - timedelta(days=1)
+        ).delete()
+
+
+def clear_login_failures(request, email):
+    keys = login_attempt_keys(request, email)
+    LoginThrottle.objects.filter(
+        key_digest__in=(keys["email"], keys["pair"])
+    ).delete()
+
+
 def api_login(request):
     if request.method != "POST":
         return error("Método no permitido.", 405)
@@ -329,9 +410,23 @@ def api_login(request):
         data = json_body(request)
     except ValueError as exc:
         return error(exc)
-    user = authenticate(request, username=data.get("email", "").strip().lower(), password=data.get("password", ""))
+    email = str(data.get("email", "")).strip().lower()
+    password = data.get("password", "")
+    if not isinstance(password, str):
+        password = ""
+
+    retry_after = login_retry_after(request, email)
+    if retry_after:
+        response = error("Demasiados intentos de acceso. Esperá unos minutos antes de probar de nuevo.", 429)
+        response["Retry-After"] = str(retry_after)
+        return response
+
+    user = authenticate(request, username=email, password=password)
     if user is None or not user.is_active:
+        record_login_failure(request, email)
+        request.preserve_login_throttle = True
         return error("Correo o contraseña incorrectos.", 401)
+    clear_login_failures(request, email)
     login(request, user)
     membership = Membership.objects.filter(user=user, is_active=True, school__state__in=(School.State.TRIAL, School.State.ACTIVE)).select_related("school").order_by("school__name").first()
     if membership and not user.is_superuser:
@@ -699,24 +794,41 @@ def api_attendance(request):
             records = [data]
         if not isinstance(records, list) or not records or len(records) > 250:
             raise ValueError("La lista debe incluir entre 1 y 250 registros.")
+        student_ids = {int(row["student_id"]) for row in records if isinstance(row, dict)}
+        students_by_id = Student.objects.filter(school=school, pk__in=student_ids).in_bulk()
+        offering_ids = {int(row.get("offering_id", data.get("offering_id"))) for row in records
+            if isinstance(row, dict) and row.get("offering_id", data.get("offering_id"))}
+        offerings_by_id = Offering.objects.filter(school=school, pk__in=offering_ids).in_bulk()
+        assigned_offering_ids = set()
+        if role == "docente" and offering_ids:
+            assigned_offering_ids = set(TeacherAssignment.objects.filter(school=school,
+                offering_id__in=offering_ids, membership=request.school_membership).values_list("offering_id", flat=True))
+        enrollments_by_student = {e.student_id: e for e in Enrollment.objects.filter(school=school,
+            student_id__in=student_ids, academic_year=timezone.localdate().year,
+            state=Enrollment.State.ACTIVE)}
         prepared = []
         seen = set()
         for row in records:
             if not isinstance(row, dict):
                 raise ValueError("Cada registro de asistencia debe ser un objeto válido.")
-            student = Student.objects.get(pk=int(row["student_id"]), school=school)
+            student = students_by_id.get(int(row["student_id"]))
+            if student is None:
+                raise Student.DoesNotExist()
             status = statuses.get(row.get("status"))
             if not status:
                 raise ValueError("Estado de asistencia inválido.")
             day = date.fromisoformat(row.get("date") or data.get("date"))
             offering_id = row.get("offering_id", data.get("offering_id"))
-            offering = Offering.objects.get(pk=offering_id, school=school) if offering_id else None
+            offering = offerings_by_id.get(int(offering_id)) if offering_id else None
+            if offering_id and offering is None:
+                raise Offering.DoesNotExist()
             if role == "docente":
                 if not offering:
                     raise ValueError("Elegí una materia o taller asignado para pasar asistencia.")
-                if not TeacherAssignment.objects.filter(school=school, offering=offering, membership=request.school_membership).exists():
+                if offering.pk not in assigned_offering_ids:
                     return error("No estás asignado a ese taller o materia.", 403)
-            if offering and (enrollment_for(student, school) is None or enrollment_for(student, school).section_id != offering.section_id):
+            enrollment = enrollments_by_student.get(student.pk)
+            if offering and (enrollment is None or enrollment.section_id != offering.section_id):
                 raise ValueError("El alumno no pertenece a la comisión seleccionada.")
             key = (student.pk, day, offering.pk if offering else None)
             if key in seen:
@@ -1697,7 +1809,14 @@ def api_health(request):
     from django.db import connections
     try:
         connections["default"].ensure_connection()
-        return JsonResponse({"ok":True,"database":connections["default"].vendor})
+        from pathlib import Path
+        release = os.environ.get("NEXO_RELEASE", "").strip()
+        if not release:
+            try:
+                release = Path(settings.BASE_DIR, "BUILD_REVISION").read_text(encoding="utf-8").strip()
+            except OSError:
+                release = "untracked"
+        return JsonResponse({"ok": True, "database": connections["default"].vendor, "release": release})
     except Exception:return error("La base de datos no está disponible.",503)
 
 
@@ -1749,7 +1868,7 @@ def purge_expired_school_signup_requests():
 
 def signup_plan_quotes():
     pricing = PlatformBillingSettings.objects.filter(pk=1).first()
-    if not pricing or pricing.onboarding_amount_ars <= 0:
+    if not pricing:
         return []
     first_day = timezone.localdate().replace(day=1)
     plans = []
@@ -1758,6 +1877,7 @@ def signup_plan_quotes():
         if monthly > 0:
             plans.append({"id": key, "label": label, "monthly": str(monthly),
                 "onboarding": str(pricing.onboarding_amount_ars),
+                "renewal": str(getattr(pricing, f"{key}_renewal_amount_ars")),
                 "initial_total": str(monthly + pricing.onboarding_amount_ars)})
     return plans
 
@@ -1801,7 +1921,7 @@ def school_signup_submit(request):
         return error("El plan elegido no está disponible. Actualizá la página y volvé a intentarlo.")
 
     now = timezone.now()
-    ip = request.META.get("REMOTE_ADDR", "")[:64]
+    ip = client_ip(request)[:64]
     ip_digest = hmac.new(settings.SECRET_KEY.encode(), ip.encode(), hashlib.sha256).hexdigest()
     email_count = SchoolSignupRequest.objects.filter(contact_email=contact_email,
         created_at__gte=now - timedelta(hours=24)).count()
@@ -1819,6 +1939,7 @@ def school_signup_submit(request):
         school_name=school_name, school_type=school_type, jurisdiction=jurisdiction,
         contact_name=contact_name, contact_email=contact_email, contact_phone=contact_phone,
         plan=plan, monthly_quote_ars=quote["monthly"], onboarding_quote_ars=quote["onboarding"],
+        renewal_quote_ars=quote["renewal"],
         quoted_at=now, quote_expires_at=now + timedelta(days=7),
         verification_token_hash=hashlib.sha256(token.encode()).hexdigest(),
         verification_expires_at=now + timedelta(hours=24), expires_at=now + timedelta(hours=24),
@@ -1859,7 +1980,8 @@ def school_signup_verify(request, request_id, token):
 
 def school_signup_result(request, request_id):
     purge_expired_school_signup_requests()
-    signup = SchoolSignupRequest.objects.filter(pk=request_id, state=SchoolSignupRequest.State.VERIFIED).first()
+    signup = SchoolSignupRequest.objects.filter(pk=request_id,
+        state__in=(SchoolSignupRequest.State.VERIFIED, SchoolSignupRequest.State.CONVERTED)).first()
     whatsapp_url = ""
     if signup:
         raw_number = str(getattr(settings, "NEXO_WHATSAPP_NUMBER", "")).strip()
@@ -1907,6 +2029,29 @@ def platform_school_admin(request):
     return error("Método no permitido.", 405)
 
 
+@transaction.atomic
+def platform_school_delete(request, school_id):
+    if request.method != "DELETE":
+        return error("Método no permitido.", 405)
+    if not request.user.is_superuser:
+        return error("Acceso solo para administración de la plataforma.", 403)
+    try:
+        data = json_body(request)
+        password = data.get("password")
+        if not isinstance(password, str) or not password:
+            raise ValueError("Ingresá la contraseña de tu cuenta.")
+        if not request.user.check_password(password):
+            return error("La contraseña no es correcta.", 403)
+        school = School.objects.select_for_update().get(pk=school_id)
+        school_name = school.name
+        school.delete()
+        return JsonResponse({"deleted": True, "id": school_id, "name": school_name})
+    except School.DoesNotExist as exc:
+        return error(exc, 404)
+    except ValueError as exc:
+        return error(exc)
+
+
 def platform_school_signup_requests(request):
     if not request.user.is_superuser:
         return error("Acceso solo para administración de la plataforma.", 403)
@@ -1920,6 +2065,7 @@ def platform_school_signup_requests(request):
             "contact_name": signup.contact_name, "contact_email": signup.contact_email,
             "contact_phone": signup.contact_phone, "plan": signup.plan,
             "monthly_quote_ars": str(signup.monthly_quote_ars),
+            "renewal_quote_ars": str(signup.renewal_quote_ars),
             "onboarding_quote_ars": str(signup.onboarding_quote_ars),
             "initial_total_ars": str(signup.monthly_quote_ars + signup.onboarding_quote_ars),
             "created_at": signup.created_at.isoformat(), "verified_at": signup.verified_at.isoformat() if signup.verified_at else None,
@@ -1958,19 +2104,33 @@ def platform_school_signup_approve(request, request_id):
         next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
         subscription = SchoolSubscription.objects.create(school=school, plan=signup.plan,
             monthly_amount_ars=signup.monthly_quote_ars, onboarding_amount_ars=signup.onboarding_quote_ars,
+            renewal_monthly_amount_ars=signup.renewal_quote_ars or None,
+            promo_ends_on=launch_renewal_date(timezone.localdate()) if signup.renewal_quote_ars else None,
             contact_name=signup.contact_name, contact_email=signup.contact_email)
-        SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.ONBOARDING,
-            plan=signup.plan, amount_ars=signup.onboarding_quote_ars, due_on=timezone.localdate())
+        if signup.onboarding_quote_ars > 0:
+            SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.ONBOARDING,
+                plan=signup.plan, amount_ars=signup.onboarding_quote_ars, due_on=timezone.localdate())
         SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.MONTHLY,
             period_start=first_day, period_end=next_month - timedelta(days=1), plan=signup.plan,
             amount_ars=signup.monthly_quote_ars, due_on=timezone.localdate())
         signup.state = SchoolSignupRequest.State.CONVERTED
         signup.converted_school = school
+        signup.renewal_on = subscription.promo_ends_on
         signup.reviewed_at = now
         signup.reviewed_by = request.user
-        signup.save(update_fields=("state", "converted_school", "reviewed_at", "reviewed_by"))
+        signup.save(update_fields=("state", "converted_school", "renewal_on", "reviewed_at", "reviewed_by"))
         Audit.objects.create(school=school, actor=request.user, action="Alta aprobada desde solicitud pública",
             detail=f"{school.name} · solicitud {signup.id}")
+        if subscription.promo_ends_on:
+            subject = "Precio y fecha de renovación de Nexo Escolar"
+            body = (f"Hola {signup.contact_name},\n\nEl plan {subscription.get_plan_display()} de {school.name} "
+                f"cuesta ${subscription.monthly_amount_ars} ARS por mes hasta el "
+                f"{subscription.promo_ends_on:%d/%m/%Y}. Desde esa fecha, el precio de renovación "
+                f"cotizado es ${subscription.renewal_monthly_amount_ars} ARS por mes. "
+                "La primera factura posterior a esa fecha reflejará el nuevo precio. "
+                "El alta por autoservicio no tiene cargo; la capacitación o migración asistida se cotiza aparte.\n")
+            transaction.on_commit(lambda: send_mail(subject, body, settings.DEFAULT_FROM_EMAIL,
+                [signup.contact_email], fail_silently=True))
         return JsonResponse({"id": school.id, "name": school.name, "state": school.state,
             "subscription_state": subscription.state, "plan": subscription.plan,
             "initial_charges": list(subscription.charges.values("id", "kind", "plan", "amount_ars", "due_on"))}, status=201)
@@ -2031,9 +2191,10 @@ def platform_school_signup_requote(request, request_id):
         now = timezone.now()
         signup.monthly_quote_ars = monthly
         signup.onboarding_quote_ars = pricing.onboarding_amount_ars
+        signup.renewal_quote_ars = getattr(pricing, f"{signup.plan}_renewal_amount_ars")
         signup.quoted_at = now
         signup.quote_expires_at = now + timedelta(days=7)
-        signup.save(update_fields=("monthly_quote_ars", "onboarding_quote_ars", "quoted_at", "quote_expires_at"))
+        signup.save(update_fields=("monthly_quote_ars", "onboarding_quote_ars", "renewal_quote_ars", "quoted_at", "quote_expires_at"))
         return JsonResponse({"monthly_quote_ars": str(monthly), "onboarding_quote_ars": str(pricing.onboarding_amount_ars),
             "quote_expires_at": signup.quote_expires_at.isoformat()})
     except SchoolSignupRequest.DoesNotExist:
@@ -2063,8 +2224,8 @@ def create_platform_school(request, data):
     except ValidationError:
         raise ValueError("El correo de administración no es válido.")
     pricing = PlatformBillingSettings.objects.filter(pk=1).first()
-    if not pricing or getattr(pricing, f"{plan}_monthly_amount_ars") <= 0 or pricing.onboarding_amount_ars <= 0:
-        raise ValueError("Configurá primero el abono del plan elegido y el cargo de alta en Cobros.")
+    if not pricing or getattr(pricing, f"{plan}_monthly_amount_ars") <= 0:
+        raise ValueError("Configurá primero el abono del plan elegido en Cobros.")
     school = School.objects.create(name=name, slug=slug, school_type=school_type,
         jurisdiction=str(data.get("jurisdiction", "")).strip(), state=School.State.ONBOARDING)
     set_rls_school(school)
@@ -2074,9 +2235,12 @@ def create_platform_school(request, data):
     subscription = SchoolSubscription.objects.create(school=school,
         plan=plan, monthly_amount_ars=monthly_price_for(first_day, plan, pricing),
         onboarding_amount_ars=pricing.onboarding_amount_ars,
+        renewal_monthly_amount_ars=getattr(pricing, f"{plan}_renewal_amount_ars"),
+        promo_ends_on=launch_renewal_date(timezone.localdate()),
         contact_name=admin_name, contact_email=email)
-    SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.ONBOARDING,
-        plan=plan, amount_ars=subscription.onboarding_amount_ars, due_on=timezone.localdate())
+    if subscription.onboarding_amount_ars > 0:
+        SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.ONBOARDING,
+            plan=plan, amount_ars=subscription.onboarding_amount_ars, due_on=timezone.localdate())
     SubscriptionCharge.objects.create(subscription=subscription, kind=SubscriptionCharge.Kind.MONTHLY,
         period_start=first_day, period_end=next_month - timedelta(days=1),
         plan=plan, amount_ars=subscription.monthly_amount_ars, due_on=timezone.localdate())
@@ -2103,6 +2267,27 @@ def monthly_price_for(period_start, plan=SubscriptionPlan.BASIC, settings_row=No
     return revision.monthly_amount_ars if revision else getattr(settings_row, f"{plan}_monthly_amount_ars")
 
 
+def launch_renewal_date(start):
+    year = start.year + 1
+    return start.replace(year=year, day=min(start.day, calendar.monthrange(year, start.month)[1]))
+
+
+def subscription_price_for(subscription, period_start, plan):
+    if subscription.promo_ends_on and subscription.renewal_monthly_amount_ars is not None:
+        if period_start < subscription.promo_ends_on:
+            return subscription.monthly_amount_ars if plan == subscription.plan else monthly_price_for(period_start, plan)
+        if plan == subscription.plan:
+            revision = PlatformPriceChange.objects.filter(plan=plan, effective_on__gte=subscription.promo_ends_on,
+                effective_on__lte=period_start).order_by("-effective_on").first()
+            if revision:
+                return revision.monthly_amount_ars
+            return subscription.renewal_monthly_amount_ars
+    if plan == subscription.plan:
+        revision = PlatformPriceChange.objects.filter(plan=plan, effective_on__lte=period_start).order_by("-effective_on").first()
+        return revision.monthly_amount_ars if revision else subscription.monthly_amount_ars
+    return monthly_price_for(period_start, plan)
+
+
 def effective_subscription_plan(subscription, on_date=None):
     on_date = on_date or timezone.localdate()
     if subscription.pending_plan and subscription.plan_change_effective_on <= on_date:
@@ -2115,14 +2300,18 @@ def apply_due_subscription_plan(subscription, on_date=None):
     target_plan = effective_subscription_plan(subscription, on_date)
     if target_plan == subscription.plan:
         return False
-    amount = monthly_price_for(subscription.plan_change_effective_on, target_plan)
+    amount = subscription_price_for(subscription, subscription.plan_change_effective_on, target_plan)
     if amount <= 0:
         return False
     subscription.plan = target_plan
     subscription.pending_plan = None
     subscription.plan_change_effective_on = None
     subscription.monthly_amount_ars = amount
-    subscription.save(update_fields=("plan", "pending_plan", "plan_change_effective_on", "monthly_amount_ars"))
+    if subscription.pending_renewal_monthly_amount_ars is not None:
+        subscription.renewal_monthly_amount_ars = subscription.pending_renewal_monthly_amount_ars
+        subscription.pending_renewal_monthly_amount_ars = None
+    subscription.save(update_fields=("plan", "pending_plan", "plan_change_effective_on", "monthly_amount_ars",
+        "renewal_monthly_amount_ars", "pending_renewal_monthly_amount_ars"))
     return True
 
 
@@ -2148,6 +2337,8 @@ def platform_billing_settings(request):
         return JsonResponse({"basic_monthly_amount_ars": str(settings_row.basic_monthly_amount_ars),
             "pro_monthly_amount_ars": str(settings_row.pro_monthly_amount_ars),
             "onboarding_amount_ars": str(settings_row.onboarding_amount_ars),
+            "basic_renewal_amount_ars": str(settings_row.basic_renewal_amount_ars),
+            "pro_renewal_amount_ars": str(settings_row.pro_renewal_amount_ars),
             "price_changes": [{"id": row.id, "plan": row.plan, "monthly_amount_ars": str(row.monthly_amount_ars),
                 "effective_on": row.effective_on.isoformat(), "notified_at": row.notified_at.isoformat() if row.notified_at else None}
                 for row in pending_changes]})
@@ -2157,7 +2348,9 @@ def platform_billing_settings(request):
         data = json_body(request)
         basic_amount = parse_ars_amount(data.get("basic_monthly_amount_ars"), "Abono Básico")
         pro_amount = parse_optional_ars_amount(data.get("pro_monthly_amount_ars"), "Abono Pro")
-        onboarding_amount = parse_ars_amount(data.get("onboarding_amount_ars"), "Alta y capacitación")
+        onboarding_amount = parse_optional_ars_amount(data.get("onboarding_amount_ars"), "Alta por autoservicio")
+        basic_renewal = parse_ars_amount(data.get("basic_renewal_amount_ars", settings_row.basic_renewal_amount_ars), "Renovación Básico")
+        pro_renewal = parse_ars_amount(data.get("pro_renewal_amount_ars", settings_row.pro_renewal_amount_ars), "Renovación Pro")
         if (SchoolSubscription.objects.filter(Q(plan=SubscriptionPlan.BASIC) | Q(pending_plan=SubscriptionPlan.BASIC)).exists()
                 and basic_amount != settings_row.basic_monthly_amount_ars):
             raise ValueError("El plan Básico ya tiene escuelas; programá su próximo ajuste en lugar de cambiar la tarifa actual.")
@@ -2169,10 +2362,15 @@ def platform_billing_settings(request):
         settings_row.basic_monthly_amount_ars = basic_amount
         settings_row.pro_monthly_amount_ars = pro_amount
         settings_row.onboarding_amount_ars = onboarding_amount
-        settings_row.save(update_fields=("basic_monthly_amount_ars", "pro_monthly_amount_ars", "onboarding_amount_ars", "updated_at"))
+        settings_row.basic_renewal_amount_ars = basic_renewal
+        settings_row.pro_renewal_amount_ars = pro_renewal
+        settings_row.save(update_fields=("basic_monthly_amount_ars", "pro_monthly_amount_ars", "onboarding_amount_ars",
+            "basic_renewal_amount_ars", "pro_renewal_amount_ars", "updated_at"))
         return JsonResponse({"basic_monthly_amount_ars": str(settings_row.basic_monthly_amount_ars),
             "pro_monthly_amount_ars": str(settings_row.pro_monthly_amount_ars),
-            "onboarding_amount_ars": str(settings_row.onboarding_amount_ars)})
+            "onboarding_amount_ars": str(settings_row.onboarding_amount_ars),
+            "basic_renewal_amount_ars": str(settings_row.basic_renewal_amount_ars),
+            "pro_renewal_amount_ars": str(settings_row.pro_renewal_amount_ars)})
     except (ValueError, KeyError) as exc:
         return error(exc)
 
@@ -2196,6 +2394,8 @@ def platform_schedule_price_change(request):
         outgoing = []
         active_subscriptions = SchoolSubscription.objects.filter(state=SchoolSubscription.State.ACTIVE).select_related("school")
         for subscription in active_subscriptions:
+            if subscription.promo_ends_on and effective_on < subscription.promo_ends_on:
+                continue
             plan_at_effective_date = (subscription.pending_plan
                 if subscription.pending_plan and subscription.plan_change_effective_on <= effective_on
                 else subscription.plan)
@@ -2229,6 +2429,50 @@ def serialize_charge(charge):
         "paid_at": charge.paid_at.isoformat() if charge.paid_at else None}
 
 
+def generate_monthly_charges(first_day):
+    """Idempotent billing shared by the platform UI and the scheduler."""
+    next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
+    last_day = next_month - timedelta(days=1)
+    due_on = first_day + timedelta(days=9)
+    created = skipped = 0
+    subscriptions = list(SchoolSubscription.objects.filter(state=SchoolSubscription.State.ACTIVE,
+        school__state=School.State.ACTIVE).select_related("school").select_for_update())
+    work = []
+    for subscription in subscriptions:
+        if SubscriptionCharge.objects.filter(subscription=subscription,
+                kind=SubscriptionCharge.Kind.MONTHLY, period_start=first_day).exists():
+            skipped += 1
+            continue
+        target_plan = subscription.plan
+        if subscription.pending_plan and subscription.plan_change_effective_on <= first_day:
+            target_plan = subscription.pending_plan
+        amount = subscription_price_for(subscription, first_day, target_plan)
+        if amount <= 0:
+            raise ValueError(f"Configurá la tarifa {dict(SubscriptionPlan.choices)[target_plan]} antes de generar los cargos.")
+        work.append((subscription, target_plan, amount))
+    for subscription, target_plan, amount in work:
+        update_fields = []
+        if target_plan != subscription.plan:
+            subscription.plan = target_plan
+            subscription.pending_plan = None
+            subscription.plan_change_effective_on = None
+            update_fields.extend(("plan", "pending_plan", "plan_change_effective_on"))
+            if subscription.pending_renewal_monthly_amount_ars is not None:
+                subscription.renewal_monthly_amount_ars = subscription.pending_renewal_monthly_amount_ars
+                subscription.pending_renewal_monthly_amount_ars = None
+                update_fields.extend(("renewal_monthly_amount_ars", "pending_renewal_monthly_amount_ars"))
+        subscription.monthly_amount_ars = amount
+        update_fields.append("monthly_amount_ars")
+        subscription.save(update_fields=tuple(update_fields))
+        _, was_created = SubscriptionCharge.objects.get_or_create(subscription=subscription,
+            kind=SubscriptionCharge.Kind.MONTHLY, period_start=first_day,
+            defaults={"period_end": last_day, "plan": subscription.plan,
+                "amount_ars": amount, "due_on": due_on})
+        created += int(was_created)
+        skipped += int(not was_created)
+    return {"created": created, "existing": skipped, "month": first_day.strftime("%Y-%m")}
+
+
 @transaction.atomic
 def platform_subscription_charges(request):
     if not request.user.is_superuser:
@@ -2248,43 +2492,7 @@ def platform_subscription_charges(request):
         current_month = timezone.localdate().replace(day=1)
         if first_day != current_month:
             raise ValueError("Los abonos se generan para el mes actual.")
-        next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
-        last_day = next_month - timedelta(days=1)
-        due_on = first_day + timedelta(days=9)
-        created = 0
-        skipped = 0
-        subscriptions = list(SchoolSubscription.objects.filter(state=SchoolSubscription.State.ACTIVE,
-            school__state=School.State.ACTIVE).select_related("school").select_for_update())
-        work = []
-        for subscription in subscriptions:
-            if SubscriptionCharge.objects.filter(subscription=subscription,
-                    kind=SubscriptionCharge.Kind.MONTHLY, period_start=first_day).exists():
-                skipped += 1
-                continue
-            target_plan = subscription.plan
-            if subscription.pending_plan and subscription.plan_change_effective_on <= first_day:
-                target_plan = subscription.pending_plan
-            amount = monthly_price_for(first_day, target_plan)
-            if amount <= 0:
-                raise ValueError(f"Configurá la tarifa {dict(SubscriptionPlan.choices)[target_plan]} antes de generar los cargos.")
-            work.append((subscription, target_plan, amount))
-        for subscription, target_plan, amount in work:
-            update_fields = []
-            if target_plan != subscription.plan:
-                subscription.plan = target_plan
-                subscription.pending_plan = None
-                subscription.plan_change_effective_on = None
-                update_fields.extend(("plan", "pending_plan", "plan_change_effective_on"))
-            subscription.monthly_amount_ars = amount
-            update_fields.append("monthly_amount_ars")
-            subscription.save(update_fields=tuple(update_fields))
-            _, was_created = SubscriptionCharge.objects.get_or_create(subscription=subscription,
-                kind=SubscriptionCharge.Kind.MONTHLY, period_start=first_day,
-                defaults={"period_end": last_day, "plan": subscription.plan,
-                    "amount_ars": subscription.monthly_amount_ars, "due_on": due_on})
-            created += int(was_created)
-            skipped += int(not was_created)
-        return JsonResponse({"created": created, "existing": skipped, "month": first_day.strftime("%Y-%m")})
+        return JsonResponse(generate_monthly_charges(first_day))
     except (ValueError, KeyError, IntegrityError) as exc:
         return error(exc)
 
@@ -2298,7 +2506,8 @@ def activate_paid_subscription(request, subscription):
     set_rls_school(subscription.school)
     setup = subscription.charges.filter(kind=SubscriptionCharge.Kind.ONBOARDING).first()
     first_month = subscription.charges.filter(kind=SubscriptionCharge.Kind.MONTHLY).order_by("period_start").first()
-    if not setup or not first_month or setup.state != SubscriptionCharge.State.PAID or first_month.state != SubscriptionCharge.State.PAID:
+    setup_paid = setup is None and subscription.onboarding_amount_ars == 0 or setup and setup.state == SubscriptionCharge.State.PAID
+    if not setup_paid or not first_month or first_month.state != SubscriptionCharge.State.PAID:
         return False
     user, created = User.objects.get_or_create(email=subscription.contact_email,
         defaults={"name": subscription.contact_name, "is_active": True})
@@ -2415,7 +2624,7 @@ def platform_school_subscription(request, school_id):
             if access_enabled:
                 first_day = timezone.localdate().replace(day=1)
                 next_month = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1)
-                monthly_amount = monthly_price_for(first_day, subscription.plan)
+                monthly_amount = subscription_price_for(subscription, first_day, subscription.plan)
                 if monthly_amount <= 0:
                     raise ValueError("Configurá el precio mensual de este plan antes de reactivar la suscripción.")
                 due_on = max(first_day + timedelta(days=9), timezone.localdate())
@@ -2462,7 +2671,9 @@ def platform_school_subscription(request, school_id):
             subscription.state = SchoolSubscription.State.CANCELED
             subscription.pending_plan = None
             subscription.plan_change_effective_on = None
-            subscription.save(update_fields=("state", "pending_plan", "plan_change_effective_on"))
+            subscription.pending_renewal_monthly_amount_ars = None
+            subscription.save(update_fields=("state", "pending_plan", "plan_change_effective_on",
+                "pending_renewal_monthly_amount_ars"))
             subscription.school.state = School.State.SUSPENDED
             subscription.school.save(update_fields=("state",))
             set_rls_school(subscription.school)
@@ -2485,7 +2696,8 @@ def platform_school_subscription(request, school_id):
             if subscription.pending_plan:
                 subscription.pending_plan = None
                 subscription.plan_change_effective_on = None
-                subscription.save(update_fields=("pending_plan", "plan_change_effective_on"))
+                subscription.pending_renewal_monthly_amount_ars = None
+                subscription.save(update_fields=("pending_plan", "plan_change_effective_on", "pending_renewal_monthly_amount_ars"))
                 Audit.objects.create(school=subscription.school, actor=request.user,
                     action="Cambio de plan cancelado", detail=f"Se mantiene el plan {subscription.get_plan_display()}")
             return JsonResponse({"school_id": school_id, "plan": subscription.plan,
@@ -2496,9 +2708,26 @@ def platform_school_subscription(request, school_id):
             raise ValueError(f"Configurá el abono {dict(SubscriptionPlan.choices)[plan]} antes de programar el cambio.")
         subscription.pending_plan = plan
         subscription.plan_change_effective_on = effective_on
-        subscription.save(update_fields=("pending_plan", "plan_change_effective_on"))
+        if subscription.promo_ends_on and effective_on < subscription.promo_ends_on:
+            pricing = PlatformBillingSettings.objects.get(pk=1)
+            subscription.pending_renewal_monthly_amount_ars = getattr(pricing, f"{plan}_renewal_amount_ars")
+        else:
+            subscription.pending_renewal_monthly_amount_ars = None
+        subscription.save(update_fields=("pending_plan", "plan_change_effective_on", "pending_renewal_monthly_amount_ars"))
         Audit.objects.create(school=subscription.school, actor=request.user,
             action="Cambio de plan programado", detail=f"{subscription.get_plan_display()} → {dict(SubscriptionPlan.choices)[plan]} desde {effective_on.isoformat()}")
+        if subscription.pending_renewal_monthly_amount_ars is not None:
+            try:
+                send_mail("Cambio de plan y precio de renovación de Nexo Escolar",
+                    f"Hola {subscription.contact_name},\n\nEl plan de {subscription.school.name} cambiará a "
+                    f"{dict(SubscriptionPlan.choices)[plan]} desde el {effective_on:%d/%m/%Y}. "
+                    f"El abono promocional de ese plan será ${monthly_price_for(effective_on, plan)} ARS por mes "
+                    f"hasta el {subscription.promo_ends_on:%d/%m/%Y}. Desde esa fecha, la renovación "
+                    f"será de ${subscription.pending_renewal_monthly_amount_ars} ARS por mes.\n",
+                    settings.DEFAULT_FROM_EMAIL, [subscription.contact_email], fail_silently=False)
+            except Exception:
+                transaction.set_rollback(True)
+                return error("No se pudo avisar el nuevo precio; el cambio de plan no se aplicó.", 502)
         return JsonResponse({"school_id": school_id, "plan": subscription.plan,
             "pending_plan": plan, "plan_change_effective_on": effective_on.isoformat()})
     except (SchoolSubscription.DoesNotExist, ValueError, KeyError) as exc:

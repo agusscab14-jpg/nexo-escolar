@@ -17,7 +17,10 @@ services:
       timeout: 5s
       retries: 10
   app:
-    build: .
+    build:
+      context: .
+      args:
+        NEXO_RELEASE: ${NEXO_RELEASE:-}
     restart: unless-stopped
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
@@ -40,6 +43,7 @@ services:
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Nexo Escolar <no-reply@nexo.local>}
       NEXO_WHATSAPP_NUMBER: ${NEXO_WHATSAPP_NUMBER:-}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      NEXO_RELEASE: ${NEXO_RELEASE:-}
     volumes:
       - collected-static:/app/collected-static
     depends_on:
@@ -85,12 +89,19 @@ services:
       - |
         set -eu
         while true; do
+          find /backups -maxdepth 1 -type f -name '.nexo-*.dump.tmp' -delete
           stamp=$$(date +%Y%m%d-%H%M%S)
-          pg_dump -h db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc > "/backups/.nexo-$$stamp.dump.tmp"
-          mv "/backups/.nexo-$$stamp.dump.tmp" "/backups/nexo-$$stamp.dump"
-          chown 1000:1000 "/backups/nexo-$$stamp.dump"
-          chmod 600 "/backups/nexo-$$stamp.dump"
-          find /backups -type f -name 'nexo-*.dump' -mtime +14 -delete
+          tmp="/backups/.nexo-$$stamp.dump.tmp"
+          if ! pg_dump -h db -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Fc -f "$$tmp" ||
+             ! pg_restore --list "$$tmp" >/dev/null 2>&1; then
+            rm -f "$$tmp"
+            sleep 60
+            continue
+          fi
+          chown 1000:1000 "$$tmp"
+          chmod 600 "$$tmp"
+          mv "$$tmp" "/backups/nexo-$$stamp.dump"
+          find /backups -maxdepth 1 -type f -name 'nexo-*.dump' -mtime +14 -delete
           sleep 86400
         done
 volumes:

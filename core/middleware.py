@@ -41,8 +41,8 @@ class SchoolContextMiddleware:
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT set_config('app.current_school_id', '', true)")
             response = self.get_response(request)
-            # Views return JSON errors instead of raising; roll back any partial work and
-            # clear a transaction marked broken by a caught database exception.
-            if response.status_code >= 400:
+            # Failed login counters are the only writes intentionally committed on an error response.
+            # Other errors roll back partial work and clear any transaction marked broken by a caught DB exception.
+            if response.status_code >= 400 and not getattr(request, "preserve_login_throttle", False):
                 transaction.set_rollback(True)
         return response

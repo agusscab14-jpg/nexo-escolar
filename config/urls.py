@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/v1/me/", views.api_me, name="api_me"),
     path("api/v1/schools/", views.api_schools, name="api_schools"),
     path("api/v1/schools/<int:school_id>/state/", views.platform_school_state, name="platform_school_state"),
+    path("api/v1/platform/schools/<int:school_id>/", views.platform_school_delete, name="platform_school_delete"),
     path("api/v1/platform/schools/<int:school_id>/subscription/", views.platform_school_subscription, name="platform_school_subscription"),
     path("api/v1/platform/schools/<int:school_id>/invite/", views.platform_resend_school_invite, name="platform_resend_school_invite"),
     path("api/v1/platform/schools/", views.platform_school_admin, name="platform_schools"),

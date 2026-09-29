@@ -36,15 +36,19 @@ Para volver a cargar datos de ejemplo, ejecutá de nuevo `python manage.py seed_
 
 ## Poner en marcha una escuela
 
+El lanzamiento comercial para secundarias usa dos planes mensuales por escuela: Básico ARS 15.000 y Pro ARS 20.000 durante 12 meses desde la aprobación del alta. Los importes de renovación cotizados son ARS 50.000 y ARS 80.000 respectivamente; cada solicitud conserva su cotización y recibe la fecha exacta antes del primer pago. El alta por autoservicio puede ser gratuita; capacitación y migración asistidas se presupuestan aparte. Las suscripciones anteriores a esta promoción conservan su tarifa hasta un ajuste programado. Ver [oferta comercial piloto](docs/oferta-comercial-piloto.md).
+
+El código preparado no activa por sí solo HTTPS, copias externas ni alta disponibilidad. Para pasar del servidor HTTP actual a producción, seguí [puesta en producción](docs/production-rollout.md).
+
 1. Confirmá el plan de estudios, los talleres, los turnos, períodos, escalas de notas, reglas de asistencia y archivos de carga de la escuela. La jurisdicción queda editable; no hay integración automática con SInIDE.
 2. Prepará un servidor con Docker Compose, nombre DNS estable y acceso HTTPS. Copiá `.env.example` a `.env`, configurá el dominio, generá secretos nuevos y completá el SMTP institucional (`EMAIL_HOST`, `EMAIL_PORT`, credenciales y TLS o SSL). Usá contraseñas de base de datos hexadecimales para que funcionen sin codificación adicional en la URL.
 3. Abrí los puertos 80/443 hacia Caddy y ejecutá `docker compose up -d --build`. Caddy solicitará y renovará el certificado TLS para el dominio configurado.
-4. Creá la primera cuenta administradora de plataforma: `docker compose exec app python manage.py createsuperuser`. En `/plataforma/`, abrí **Cobros** y configurá los abonos Básico y Pro y el cargo de alta común antes de registrar escuelas de esos planes. Pro puede quedar sin configurar mientras se ofrecen altas Básicas.
+4. Creá la primera cuenta administradora de plataforma: `docker compose exec app python manage.py createsuperuser`. En `/plataforma/`, abrí **Cobros** y configurá los abonos Básico y Pro, sus precios de renovación y el cargo de alta (cero para autoservicio). Pro puede quedar sin configurar mientras se ofrecen altas Básicas.
 5. Usá las plantillas descargables CSV/XLSX y revisá cada vista previa antes de confirmar una importación. Hacé primero un ensayo con datos ficticios.
-6. Definí `NEXO_WHATSAPP_NUMBER` con el número de Nexo en formato internacional, solo dígitos (por ejemplo `5491112345678`), en `.env.local` para desarrollo o `.env` con Docker. El director inicia el registro desde “¿Dirigís una escuela? Registrala”, verifica su correo y conversa el alta por WhatsApp. En **Solicitudes**, revisá la conversación y aprobá el alta; esto crea la escuela pendiente y los cargos cotizados. Registrá las dos transferencias en **Cobros**; al confirmar la segunda, Nexo activa la escuela e invita al director, que queda como `school_admin` y puede administrar la institución e invitar a su equipo.
-7. Antes de importar datos reales, revisá permisos con cada rol, la política institucional de privacidad, el acceso al servidor, el proceso de altas y bajas y la retención de datos.
+6. Definí `NEXO_WHATSAPP_NUMBER` con el número de Nexo en formato internacional, solo dígitos (por ejemplo `5491112345678`), en `.env.local` para desarrollo o `.env` con Docker. El director inicia el registro desde “¿Dirigís una escuela? Registrala”, verifica su correo y conversa el alta por WhatsApp. En **Solicitudes**, revisá la conversación y aprobá el alta; esto crea la escuela pendiente y los cargos cotizados, y comunica el precio y fecha de renovación. Registrá el primer abono y, si corresponde, el cargo de alta en **Cobros**; al confirmar los pagos aplicables, Nexo activa la escuela e invita al director, que queda como `school_admin` y puede administrar la institución e invitar a su equipo.
+7. Antes de importar datos reales, completá la lista de decisiones y controles de [preparación del piloto](docs/pilot-readiness.md). El servidor actual conserva HTTP en el puerto 8014; usá datos sintéticos hasta habilitar HTTPS o un canal privado cifrado.
 
-La base PostgreSQL crea un rol de ejecución sin privilegios de propietario. Las migraciones se ejecutan con el rol de administración y los datos escolares tienen políticas RLS asociadas a la escuela activa guardada en la sesión. La app también comprueba escuela, membresía, rol y alcance de cada operación. Las escuelas en alta pendiente no pueden iniciar sesión; los pilotos preexistentes conservan su acceso. Los pagos se registran manualmente por transferencia: el sistema no hace débitos automáticos ni emite facturas fiscales. Los abonos del mes se generan desde la consola, los vencimientos se muestran para seguimiento y la suspensión o cancelación queda en manos de administración de plataforma.
+La base PostgreSQL crea un rol de ejecución sin privilegios de propietario. Las migraciones se ejecutan con el rol de administración y las tablas escolares tienen políticas RLS asociadas a la escuela activa guardada en la sesión. core_membership queda fuera de RLS para permitir que una cuenta pertenezca a varias escuelas; sus consultas deben limitarse por usuario y membresía. La app también comprueba escuela, membresía, rol y alcance de cada operación. Las escuelas en alta pendiente no pueden iniciar sesión; los pilotos preexistentes conservan su acceso. Los pagos se registran manualmente por transferencia: el sistema no hace débitos automáticos ni emite facturas fiscales. Los abonos del mes se generan desde la consola, los vencimientos se muestran para seguimiento y la suspensión o cancelación queda en manos de administración de plataforma.
 
 Las escuelas Pro habilitan estadísticas académicas para administración escolar, dirección, secretaría y preceptoría. El tablero presenta medias simples de notas cargadas, aprobación según la escala de la escuela, distribución de calificaciones y evolución por período. Las notas faltantes se excluyen de los promedios.
 
@@ -56,7 +60,7 @@ Compose genera una copia PostgreSQL diaria en `./backups` y elimina las copias d
 ./deploy/backup-restore-check.sh backups/nexo-AAAAMMDD-HHMMSS.dump
 ```
 
-El script restaura la copia en una base temporal y verifica que el esquema principal esté presente; la validación operativa del piloto también debe comprobar relaciones y una muestra de registros.
+El script primero valida el archivo y luego lo restaura en una base temporal. Comprueba tablas, historial de migraciones, claves foráneas, relaciones entre escuelas y registros, y RLS forzada. Ejecutá el simulacro PostgreSQL aislado con ./deploy/test-postgres.sh.
 
 ## Comandos útiles
 
@@ -65,12 +69,16 @@ python manage.py test
 python manage.py check
 python manage.py makemigrations --check --dry-run
 python manage.py purge_school_signup_requests
+python manage.py generate_monthly_charges
+./deploy/test-postgres.sh
 ```
 
 Programá `purge_school_signup_requests` una vez al día en el servidor para eliminar las solicitudes vencidas. Las solicitudes sin verificar vencen en 24 horas; las verificadas vencen a los 14 días. Las cotizaciones duran 7 días; si vencen, Nexo confirma los nuevos importes por WhatsApp y actualiza la cotización antes de aprobar.
 
-Las pruebas locales corren con SQLite y verifican permisos por rol, suscripciones, activación después del pago, historial de transferencias, vínculos de tutores, calendario, boletines PDF, seguimiento académico, importaciones CSV/XLSX y devoluciones de biblioteca. La política RLS se activa únicamente con PostgreSQL; este entorno de desarrollo no incluye un servidor PostgreSQL para ejecutar una prueba integrada sobre esa base.
+Programá también `generate_monthly_charges` diariamente al comenzar la jornada; el comando es idempotente y genera solo los abonos faltantes del mes actual. No lo actives antes de verificar la migración de precios y el acceso al SMTP y a PostgreSQL.
+
+Las pruebas locales con SQLite cubren permisos por rol, autenticación, recuperación de contraseña, suscripciones, calendarios, boletines, importaciones y biblioteca. ./deploy/test-postgres.sh levanta una base desechable, comprueba las migraciones y permisos RLS con el rol nexo_app, ejecuta la suite y verifica la restauración de registros sintéticos.
 
 ## Alcance y siguientes decisiones
 
-La demo SQLite anterior (`school.db`) y sus usuarios no se migran. Los datos actuales de demostración se regeneran desde `seed_demo`. Para habilitar el piloto faltan decisiones propias de la institución: jurisdicción, reglas académicas, servidor y dominio, responsable de operación, correo, retención y procedimiento de respaldo/restauración. No se envían datos reales a SInIDE ni se presupone una API provincial disponible. La revisión de privacidad para datos de niñas, niños y adolescentes debe completarse antes de cargar padrones reales.
+La demo SQLite anterior school.db y sus usuarios no se migran. Los datos actuales de demostración se regeneran desde seed_demo. Para habilitar el piloto faltan decisiones institucionales sobre jurisdicción, reglas académicas, responsables, correo, privacidad, conservación, bajas y recuperación. Antes de importar padrones reales, la escuela debe confirmar también con dirección o autoridad provincial qué uso de SInIDE requiere y qué formato o canal oficial autoriza; Nexo no presupone una API disponible. Ver [Preparación de Nexo para un piloto](docs/pilot-readiness.md).

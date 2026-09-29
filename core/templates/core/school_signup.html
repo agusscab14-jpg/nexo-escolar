@@ -27,14 +27,14 @@
         <label>Teléfono de contacto<input name="contact_phone" type="tel" maxlength="40" required autocomplete="tel" placeholder="+54 9 11 1234 5678"></label>
       </div>
 
-      <div class="section-title section-spaced"><span>3</span><div><h2>Elegí un plan</h2><p>Los importes iniciales incluyen el primer mes y alta/capacitación.</p></div></div>
+      <div class="section-title section-spaced"><span>3</span><div><h2>Elegí un plan</h2><p>Precio de lanzamiento durante 12 meses desde la aprobación del alta. El alta por autoservicio no tiene cargo cuando figura $0.</p></div></div>
       {% if plans %}
         <div class="plan-options">
           {% for plan in plans %}
-          <label class="plan-option"><input type="radio" name="plan" value="{{ plan.id }}" {% if forloop.first %}checked{% endif %} required><span class="plan-box"><b>{{ plan.label }}</b><small>{{ plan.monthly }} ARS por mes</small><small>Alta y capacitación: {{ plan.onboarding }} ARS</small><strong>Total inicial: {{ plan.initial_total }} ARS</strong></span></label>
+          <label class="plan-option"><input type="radio" name="plan" value="{{ plan.id }}" {% if forloop.first %}checked{% endif %} required><span class="plan-box"><b>{{ plan.label }}</b><small>Lanzamiento: {{ plan.monthly }} ARS por mes durante 12 meses</small><small>Desde la renovación: {{ plan.renewal }} ARS por mes</small><small>Alta por autoservicio: {{ plan.onboarding }} ARS; capacitación y migración asistida se cotizan aparte</small><strong>Total inicial: {{ plan.initial_total }} ARS</strong></span></label>
           {% endfor %}
         </div>
-        <p class="quote-note">La cotización se mantiene durante 7 días. El pago se coordina manualmente con Nexo por WhatsApp; esta solicitud no procesa ni confirma transferencias.</p>
+        <p class="quote-note">La fecha exacta de renovación se confirma al aprobar el alta, antes del pago. La cotización se mantiene durante 7 días. El pago se coordina manualmente con Nexo por WhatsApp; esta solicitud no procesa ni confirma transferencias.</p>
       {% else %}
         <div class="notice">Los planes todavía no están disponibles. Escribinos para coordinar el alta.</div>
       {% endif %}

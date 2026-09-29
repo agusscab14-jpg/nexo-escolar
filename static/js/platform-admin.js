@@ -11,6 +11,31 @@
   let schoolFilter = "all";
   let schoolsLoaded = false;
 
+  function initializeThemeToggle() {
+    const button = $("#theme-toggle");
+    if (!button) return;
+    const icon = $(".theme-toggle-icon", button);
+    const label = $(".theme-toggle-text", button);
+
+    function applyTheme(theme) {
+      const isDark = theme === "dark";
+      document.documentElement.dataset.theme = isDark ? "dark" : "light";
+      button.setAttribute("aria-pressed", String(isDark));
+      button.setAttribute("aria-label", isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+      button.title = isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+      if (icon) icon.textContent = isDark ? "☀" : "☾";
+      if (label) label.textContent = isDark ? "Modo claro" : "Modo oscuro";
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#111815" : "#183d37");
+    }
+
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+    button.addEventListener("click", () => {
+      const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      applyTheme(theme);
+      try { localStorage.setItem("nexo-platform-admin-theme", theme); } catch {}
+    });
+  }
+
   async function api(path, method = "GET", data) {
     const headers = {};
     if (data !== undefined) headers["Content-Type"] = "application/json";
@@ -68,7 +93,7 @@
     });
     const list = $("#school-list");
     if (!visible.length) {
-      const pricingReady = Number(settings?.basic_monthly_amount_ars || 0) > 0 && Number(settings?.onboarding_amount_ars || 0) > 0;
+      const pricingReady = Number(settings?.basic_monthly_amount_ars || 0) > 0;
       list.innerHTML = schools.length
         ? '<div class="empty-state"><strong>No hay instituciones con esos filtros</strong><p>Probá con otro nombre o elegí otro estado.</p><button class="text-button" type="button" data-clear-school-filters>Ver todas</button></div>'
         : pricingReady
@@ -151,9 +176,10 @@
       }
     }
 
-    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal-card manage-modal" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="modal-header"><div><span class="eyebrow">INSTITUCIÓN</span><h2 id="manage-title">${escapeHtml(school.name)}</h2><p>${escapeHtml(school.slug)}</p></div><button class="close-modal" type="button" aria-label="Cerrar" data-close-modal>×</button></div><div class="manage-facts"><div><small>TIPO</small><b>${school.school_type === "technical" ? "Secundaria técnica" : "Secundaria común"}</b></div><div><small>JURISDICCIÓN</small><b>${escapeHtml(school.jurisdiction || "A definir")}</b></div><div><small>CUENTAS</small><b>${Number(school.members) || 0}</b></div></div><section class="manage-section"><div><h3>Acceso a la institución</h3><p>${statusDescription}</p></div><span class="state-pill state-${state}">${stateLabels[state]}</span></section><div class="manage-actions">${accessActions || '<span class="form-hint">No hay acciones de acceso disponibles.</span>'}</div><section class="manage-section manage-subscription"><div><h3>Suscripción y pagos</h3><p>Revisá el plan o gestioná los pagos de esta institución.</p></div></section><div class="manage-subscription-body">${subscriptionContent}</div><div class="modal-actions"><button class="secondary-button" type="button" data-close-modal>Listo</button></div></section></div>`;
+    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal-card manage-modal" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="modal-header"><div><span class="eyebrow">INSTITUCIÓN</span><h2 id="manage-title">${escapeHtml(school.name)}</h2><p>${escapeHtml(school.slug)}</p></div><button class="close-modal" type="button" aria-label="Cerrar" data-close-modal>×</button></div><div class="manage-facts"><div><small>TIPO</small><b>${school.school_type === "technical" ? "Secundaria técnica" : "Secundaria común"}</b></div><div><small>JURISDICCIÓN</small><b>${escapeHtml(school.jurisdiction || "A definir")}</b></div><div><small>CUENTAS</small><b>${Number(school.members) || 0}</b></div></div><section class="manage-section"><div><h3>Acceso a la institución</h3><p>${statusDescription}</p></div><span class="state-pill state-${state}">${stateLabels[state]}</span></section><div class="manage-actions">${accessActions || '<span class="form-hint">No hay acciones de acceso disponibles.</span>'}</div><section class="manage-section manage-subscription"><div><h3>Suscripción y pagos</h3><p>Revisá el plan o gestioná los pagos de esta institución.</p></div></section><div class="manage-subscription-body">${subscriptionContent}</div><section class="manage-delete-zone"><h3>Eliminar escuela</h3><p>Se borrarán permanentemente los datos académicos, los vínculos de acceso con esta escuela y los registros de suscripción y pagos.</p><button class="danger-button" type="button" data-delete-school="${school.id}">Eliminar escuela</button></section><div class="modal-actions"><button class="secondary-button" type="button" data-close-modal>Listo</button></div></section></div>`;
     bindModal();
     const modal = $(".modal-card");
+    modal.querySelector("[data-delete-school]")?.addEventListener("click", () => openDeleteSchoolConfirmation(id));
     modal.querySelectorAll("[data-school-state]").forEach(button => button.addEventListener("click", () => changeState(button.dataset.schoolState, button.dataset.state, button)));
     modal.querySelectorAll("[data-resend-invite]").forEach(button => button.addEventListener("click", () => resendSchoolInvite(button.dataset.resendInvite, button)));
     modal.querySelectorAll("[data-cancel-subscription]").forEach(button => button.addEventListener("click", () => cancelSubscription(button.dataset.cancelSubscription, button)));
@@ -169,6 +195,36 @@
         renderCharges();
       }
       if (targetId) document.getElementById(targetId)?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+  }
+
+  function openDeleteSchoolConfirmation(id) {
+    const school = schools.find(row => Number(row.id) === Number(id));
+    if (!school) return;
+    $("#modal-root").innerHTML = '<div class="modal-backdrop" data-close-modal><section class="modal-card manage-modal delete-school-modal" role="dialog" aria-modal="true" aria-labelledby="delete-school-title">' +
+      '<div class="modal-header"><div><span class="eyebrow">ACCIÓN DEFINITIVA</span><h2 id="delete-school-title">Eliminar ' + escapeHtml(school.name) + '</h2></div><button class="close-modal" type="button" aria-label="Cerrar" data-close-modal>×</button></div>' +
+      '<div class="delete-warning"><strong>Esta acción no se puede deshacer.</strong><p>Se eliminarán los datos académicos, los vínculos de acceso con esta escuela y los registros de suscripción y pagos.</p></div>' +
+      '<form id="delete-school-form" class="school-form"><label>Confirmá con la contraseña de tu cuenta<input name="password" type="password" autocomplete="current-password" required></label><p class="delete-error" id="delete-school-error" role="alert" aria-live="polite"></p><div class="modal-actions"><button class="secondary-button" type="button" data-close-modal>Cancelar</button><button class="danger-button" type="submit">Eliminar definitivamente</button></div></form></section></div>';
+    bindModal();
+    const form = $("#delete-school-form");
+    form.querySelector("input").focus();
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = form.querySelector('[type="submit"]');
+      const password = new FormData(form).get("password");
+      button.disabled = true;
+      button.textContent = "Eliminando…";
+      try {
+        await api("/platform/schools/" + encodeURIComponent(id) + "/", "DELETE", {password});
+        closeModal();
+        toast("Se eliminó " + school.name + ".");
+        await Promise.all([loadSchools(), loadBilling()]);
+      } catch (error) {
+        $("#delete-school-error").textContent = error.message;
+        button.disabled = false;
+        button.textContent = "Eliminar definitivamente";
+        form.querySelector("input").focus();
+      }
     });
   }
 
@@ -254,7 +310,7 @@
       const quoteStatus = item.quote_expired
         ? '<span class="request-expired">Cotización vencida · confirmar importes por WhatsApp</span>'
         : `Cotización vigente hasta ${escapeHtml(new Date(item.quote_expires_at).toLocaleDateString("es-AR"))}`;
-      return `<article class="signup-request-card"><div class="request-card-top"><div><span class="eyebrow">SOLICITUD ${escapeHtml(item.id.slice(0, 8).toUpperCase())}</span><h2>${escapeHtml(item.school_name)}</h2><p>${escapeHtml(item.school_type === "technical" ? "Secundaria técnica" : "Secundaria común")} · ${escapeHtml(item.jurisdiction || "Jurisdicción no indicada")}</p></div><span class="request-verified">Correo verificado</span></div><div class="request-details"><div><small>DIRECTOR/A</small><b>${escapeHtml(item.contact_name)}</b><span>${escapeHtml(item.contact_email)}</span><span>${escapeHtml(item.contact_phone)}</span></div><div><small>PLAN Y COTIZACIÓN</small><b>${escapeHtml(planLabels[item.plan] || item.plan)}</b><span>${ars(item.monthly_quote_ars)} al mes</span><span>Alta: ${ars(item.onboarding_quote_ars)} · Inicial: ${ars(item.initial_total_ars)}</span><span>${quoteStatus}</span></div></div><div class="request-actions">${waAction}${quoteAction}<button class="text-button danger-text" type="button" data-reject-signup="${item.id}">Rechazar</button></div></article>`;
+      return `<article class="signup-request-card"><div class="request-card-top"><div><span class="eyebrow">SOLICITUD ${escapeHtml(item.id.slice(0, 8).toUpperCase())}</span><h2>${escapeHtml(item.school_name)}</h2><p>${escapeHtml(item.school_type === "technical" ? "Secundaria técnica" : "Secundaria común")} · ${escapeHtml(item.jurisdiction || "Jurisdicción no indicada")}</p></div><span class="request-verified">Correo verificado</span></div><div class="request-details"><div><small>DIRECTOR/A</small><b>${escapeHtml(item.contact_name)}</b><span>${escapeHtml(item.contact_email)}</span><span>${escapeHtml(item.contact_phone)}</span></div><div><small>PLAN Y COTIZACIÓN</small><b>${escapeHtml(planLabels[item.plan] || item.plan)}</b><span>${ars(item.monthly_quote_ars)} al mes durante 12 meses</span><span>Renovación: ${ars(item.renewal_quote_ars)} al mes</span><span>Alta: ${ars(item.onboarding_quote_ars)} · Inicial: ${ars(item.initial_total_ars)}</span><span>${quoteStatus}</span></div></div><div class="request-actions">${waAction}${quoteAction}<button class="text-button danger-text" type="button" data-reject-signup="${item.id}">Rechazar</button></div></article>`;
     }).join("");
     list.querySelectorAll("[data-approve-signup]").forEach(button => button.addEventListener("click", () => approveSignup(button.dataset.approveSignup)));
     list.querySelectorAll("[data-reject-signup]").forEach(button => button.addEventListener("click", () => rejectSignup(button.dataset.rejectSignup)));
@@ -312,6 +368,8 @@
       $("#basic-monthly-amount").value = settings.basic_monthly_amount_ars;
       $("#pro-monthly-amount").value = settings.pro_monthly_amount_ars;
       $("#onboarding-amount").value = settings.onboarding_amount_ars;
+      $("#basic-renewal-amount").value = settings.basic_renewal_amount_ars;
+      $("#pro-renewal-amount").value = settings.pro_renewal_amount_ars;
       renderCharges();
       if (schoolsLoaded && !schools.length) renderSchools();
       const prices = settings.price_changes || [];
@@ -444,13 +502,13 @@
       toast("Cargando la configuración de cobros. Intentá de nuevo en un momento.");
       return;
     }
-    if (Number(settings.basic_monthly_amount_ars || 0) <= 0 || Number(settings.onboarding_amount_ars || 0) <= 0) {
+    if (Number(settings.basic_monthly_amount_ars || 0) <= 0) {
       switchView("billing");
       toast("Antes de crear una institución, definí el abono Básico y el alta inicial.");
       return;
     }
     const proConfigured = Number(settings?.pro_monthly_amount_ars || 0) > 0;
-    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-header"><div><h2 id="modal-title">Nueva escuela</h2><p>Al confirmar los dos pagos, se activa la escuela y se envía una invitación al correo de administración.</p></div><button class="close-modal" type="button" aria-label="Cerrar" data-close-modal>×</button></div><form class="school-form" id="school-form"><label>Nombre de la escuela<input name="name" required maxlength="180" placeholder="Ej. Escuela Secundaria del Centro"></label><div class="form-grid"><label>Identificador URL<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="80" placeholder="escuela-del-centro"><span class="form-hint">Minúsculas, números y guiones.</span></label><label>Tipo de secundaria<select name="school_type" required><option value="common">Secundaria común</option><option value="technical">Secundaria técnica</option></select></label></div><label>Plan<select name="plan" required><option value="basic">Básico · ${ars(settings?.basic_monthly_amount_ars)}/mes</option><option value="pro" ${proConfigured ? "" : "disabled"}>Pro · ${proConfigured ? `${ars(settings.pro_monthly_amount_ars)}/mes` : "tarifa sin configurar"}</option></select></label><label>Provincia / jurisdicción<input name="jurisdiction" maxlength="120" placeholder="A definir"></label><div class="form-grid"><label>Nombre de administración escolar<input name="admin_name" required maxlength="180" placeholder="Nombre y apellido"></label><label>Correo de administración escolar<input name="admin_email" required type="email" placeholder="admin@escuela.edu.ar"></label></div><div class="form-hint">Se crearán dos pagos iniciales: alta y primer mes. La escuela podrá ingresar cuando ambos estén confirmados.</div><div class="modal-actions"><button class="secondary-button" type="button" data-close-modal>Cancelar</button><button class="primary-button" type="submit">Crear escuela</button></div></form></section></div>`;
+    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-close-modal><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-header"><div><h2 id="modal-title">Nueva escuela</h2><p>Al confirmar el pago inicial, se activa la escuela y se envía una invitación al correo de administración.</p></div><button class="close-modal" type="button" aria-label="Cerrar" data-close-modal>×</button></div><form class="school-form" id="school-form"><label>Nombre de la escuela<input name="name" required maxlength="180" placeholder="Ej. Escuela Secundaria del Centro"></label><div class="form-grid"><label>Identificador URL<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="80" placeholder="escuela-del-centro"><span class="form-hint">Minúsculas, números y guiones.</span></label><label>Tipo de secundaria<select name="school_type" required><option value="common">Secundaria común</option><option value="technical">Secundaria técnica</option></select></label></div><label>Plan<select name="plan" required><option value="basic">Básico · ${ars(settings?.basic_monthly_amount_ars)}/mes</option><option value="pro" ${proConfigured ? "" : "disabled"}>Pro · ${proConfigured ? `${ars(settings.pro_monthly_amount_ars)}/mes` : "tarifa sin configurar"}</option></select></label><label>Provincia / jurisdicción<input name="jurisdiction" maxlength="120" placeholder="A definir"></label><div class="form-grid"><label>Nombre de administración escolar<input name="admin_name" required maxlength="180" placeholder="Nombre y apellido"></label><label>Correo de administración escolar<input name="admin_email" required type="email" placeholder="admin@escuela.edu.ar"></label></div><div class="form-hint">Se cobra el primer mes y, si corresponde, un cargo de alta. La escuela podrá ingresar al confirmar los pagos aplicables.</div><div class="modal-actions"><button class="secondary-button" type="button" data-close-modal>Cancelar</button><button class="primary-button" type="submit">Crear escuela</button></div></form></section></div>`;
     bindModal();
     $("#school-form").addEventListener("submit", submitSchoolForm);
     $("#school-form [name=name]").focus();
@@ -506,7 +564,9 @@
       await api("/platform/billing/settings/", "PATCH", {
         basic_monthly_amount_ars: $("#basic-monthly-amount").value,
         pro_monthly_amount_ars: $("#pro-monthly-amount").value,
-        onboarding_amount_ars: $("#onboarding-amount").value
+        onboarding_amount_ars: $("#onboarding-amount").value,
+        basic_renewal_amount_ars: $("#basic-renewal-amount").value,
+        pro_renewal_amount_ars: $("#pro-renewal-amount").value
       });
       toast("Precios guardados.");
       await loadBilling();
@@ -544,6 +604,7 @@
     window.location.assign("/");
   }
 
+  initializeThemeToggle();
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   $("#current-year").textContent = new Date().getFullYear();

@@ -1,10 +1,12 @@
 import json
 from urllib.parse import urlsplit
 from datetime import date, timedelta
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
+from django.db import DatabaseError, connection, transaction
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.utils import timezone
@@ -13,7 +15,7 @@ from io import BytesIO
 
 from .models import (
     AcademicPeriod, AcademicPlan, Attendance, Book, Enrollment, Grade, GradingScale,
-    Loan, Membership, Notice, NoticeRead, Offering, PlanYear, PlatformBillingSettings,
+    Loan, LoginThrottle, Membership, Notice, NoticeRead, Offering, PlanYear, PlatformBillingSettings,
     PlatformPriceChange, School, SchoolEvent, SchoolSubscription, Section,
     Student, StudentGuardian, Subject, SubscriptionCharge, SubscriptionPlan, TeacherAssignment, User,
     SchoolSignupRequest,
@@ -84,6 +86,21 @@ class SchoolApiTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(Student.objects.filter(school=self.school_a, name="Intento de cruce").exists())
 
+    def test_first_student_can_create_the_school_first_section(self):
+        school = School.objects.create(name="Secundaria Nueva", slug="secundaria-nueva", school_type=School.Type.COMMON)
+        self.member(self.admin, school, Membership.Role.DIRECTOR)
+        self.sign_in(self.admin, school)
+
+        response = self.post_json("/api/v1/students/", {
+            "name": "Alumna nueva", "course": "1° año", "division": "A", "shift": "morning",
+        })
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(Student.objects.filter(school=school, name="Alumna nueva").exists())
+        section = Section.objects.get(school=school)
+        self.assertEqual(section.plan_year.year_label, "1° año")
+        self.assertTrue(Enrollment.objects.filter(school=school, section=section, student__name="Alumna nueva").exists())
+
     def test_user_can_switch_only_between_member_schools(self):
         self.sign_in(self.admin, self.school_a)
         response = self.client.get("/api/v1/me/")
@@ -99,6 +116,38 @@ class SchoolApiTestCase(TestCase):
         response = self.post_json("/api/v1/schools/", {"school_id": self.school_b.id})
         self.assertEqual(response.status_code, 403)
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_existing_user_can_join_another_school_with_an_independent_role(self):
+        worker = self.user("multi-school@staff.test", "Personal compartido")
+        worker.set_password("existing-worker-password")
+        worker.save(update_fields=("password",))
+        membership_a = self.member(worker, self.school_a, Membership.Role.TEACHER)
+        self.sign_in(self.admin, self.school_b)
+
+        response = self.post_json("/api/v1/settings/", {
+            "kind": "user", "name": worker.name, "email": worker.email, "role": Membership.Role.SECRETARY,
+        })
+
+        self.assertEqual(response.status_code, 201, response.content)
+        membership_b = Membership.objects.get(school=self.school_b, user=worker)
+        self.assertEqual(membership_a.role, Membership.Role.TEACHER)
+        self.assertEqual(membership_b.role, Membership.Role.SECRETARY)
+        self.assertEqual(membership_a.user_id, membership_b.user_id)
+        login_response = self.post_json("/api/v1/auth/login/", {
+            "email": worker.email, "password": "existing-worker-password",
+        })
+        self.assertEqual(login_response.status_code, 200)
+
+        me = self.client.get("/api/v1/me/").json()
+        self.assertEqual(me["role"], Membership.Role.TEACHER)
+        self.assertEqual({(school["id"], school["role"]) for school in me["schools"]}, {
+            (self.school_a.id, Membership.Role.TEACHER),
+            (self.school_b.id, Membership.Role.SECRETARY),
+        })
+        self.assertEqual(self.post_json("/api/v1/schools/", {"school_id": self.school_b.id}).status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/me/").json()["role"], Membership.Role.SECRETARY)
+        self.assertEqual([row["id"] for row in self.client.get("/api/v1/students/").json()], [self.student_b.id])
+
     def test_email_login_uses_memberships_to_build_school_selector(self):
         response = self.post_json("/api/v1/auth/login/", {
             "email": "DIRECTIVO@RIO.TEST", "password": "test-password-2026",
@@ -108,6 +157,40 @@ class SchoolApiTestCase(TestCase):
         self.assertEqual(me.status_code, 200)
         self.assertEqual(me.json()["role"], Membership.Role.DIRECTOR)
         self.assertEqual(len(me.json()["schools"]), 2)
+
+    def test_health_endpoint_reports_build_identifier(self):
+        with patch.dict("os.environ", {"NEXO_RELEASE": "test-build-42"}):
+            response = self.client.get("/healthz/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["release"], "test-build-42")
+
+    def test_login_rate_limit_blocks_repeated_failures(self):
+        payload = {"email": "directivo@rio.test", "password": "wrong-password"}
+        for _ in range(10):
+            response = self.post_json("/api/v1/auth/login/", payload)
+            self.assertEqual(response.status_code, 401)
+
+        blocked = self.post_json("/api/v1/auth/login/", {
+            "email": "DIRECTIVO@RIO.TEST", "password": "test-password-2026",
+        })
+        self.assertEqual(blocked.status_code, 429)
+        self.assertGreater(int(blocked["Retry-After"]), 0)
+        self.assertEqual(LoginThrottle.objects.count(), 3)
+        self.assertNotIn("directivo@rio.test", " ".join(
+            LoginThrottle.objects.values_list("key_digest", flat=True)
+        ))
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_password_reset_does_not_disclose_unknown_addresses(self):
+        known = self.client.post("/accounts/password_reset/", {"email": self.admin.email})
+        self.assertEqual(known.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+
+        mail.outbox.clear()
+        unknown = self.client.post("/accounts/password_reset/", {"email": "unknown@rio.test"})
+        self.assertEqual(unknown.status_code, 302)
+        self.assertEqual(unknown.url, known.url)
+        self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_password_recovery_sends_a_reset_link(self):
@@ -337,6 +420,9 @@ class SchoolApiTestCase(TestCase):
             "admin_email": "responsable@precio.test",
         })
         school = School.objects.get(pk=created.json()["id"])
+        school.subscription.promo_ends_on = None
+        school.subscription.renewal_monthly_amount_ars = None
+        school.subscription.save(update_fields=("promo_ends_on", "renewal_monthly_amount_ars"))
         for charge in school.subscription.charges.all():
             self.client.patch(f"/api/v1/platform/billing/charges/{charge.id}/", data=json.dumps({
                 "state": "paid", "transfer_reference": f"REF-{charge.id}",
@@ -376,6 +462,7 @@ class SchoolApiTestCase(TestCase):
         self.assertEqual(self.client.get("/api/v1/platform/billing/settings/").json(), {
             "basic_monthly_amount_ars": "99000.00", "pro_monthly_amount_ars": "0.00",
             "onboarding_amount_ars": "30000.00", "price_changes": [],
+            "basic_renewal_amount_ars": "50000.00", "pro_renewal_amount_ars": "80000.00",
         })
         payload = {"name": "Pro Sin Precio", "slug": "pro-sin-precio", "school_type": "common",
             "admin_name": "Responsable", "admin_email": "responsable@pro.test", "plan": "pro"}
@@ -420,6 +507,7 @@ class SchoolApiTestCase(TestCase):
         school.subscription.refresh_from_db()
         self.assertEqual(school.subscription.plan, SubscriptionPlan.BASIC)
         self.assertEqual(school.subscription.pending_plan, SubscriptionPlan.PRO)
+        self.assertEqual(str(school.subscription.pending_renewal_monthly_amount_ars), "80000.00")
         self.assertEqual(initial.plan, SubscriptionPlan.BASIC)
         self.assertEqual(initial.amount_ars, old_amount)
         locked = self.client.patch("/api/v1/platform/billing/settings/", data=json.dumps({
@@ -433,6 +521,7 @@ class SchoolApiTestCase(TestCase):
         school.subscription.refresh_from_db()
         self.assertEqual(school.subscription.plan, SubscriptionPlan.PRO)
         self.assertIsNone(school.subscription.pending_plan)
+        self.assertEqual(str(school.subscription.renewal_monthly_amount_ars), "80000.00")
         with patch("core.views.timezone.localdate", return_value=effective):
             first = self.post_json("/api/v1/platform/billing/charges/", {"month": effective.strftime("%Y-%m")})
             repeated = self.post_json("/api/v1/platform/billing/charges/", {"month": effective.strftime("%Y-%m")})
@@ -607,6 +696,43 @@ class SchoolApiTestCase(TestCase):
         self.assertEqual(Membership.objects.get(school=self.school_a, user=guardian).role, Membership.Role.GUARDIAN)
 
 
+@skipUnless(connection.vendor == "postgresql", "Requires PostgreSQL row-level security")
+class PostgreSQLRowLevelSecurityTestCase(TestCase):
+    def setUp(self):
+        self.school_a = School.objects.create(name="A RLS", slug="a-rls")
+        self.school_b = School.objects.create(name="B RLS", slug="b-rls")
+        self.student_a = Student.objects.create(school=self.school_a, name="A student")
+        self.student_b = Student.objects.create(school=self.school_b, name="B student")
+
+    def assume_app_role_for_school(self, school):
+        with connection.cursor() as cursor:
+            cursor.execute("GRANT USAGE ON SCHEMA public TO nexo_app")
+            cursor.execute(
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nexo_app"
+            )
+            cursor.execute(
+                "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO nexo_app"
+            )
+            cursor.execute("SET ROLE nexo_app")
+            cursor.execute(
+                "SELECT set_config('app.current_school_id', %s, true)",
+                [str(school.pk)],
+            )
+
+    def test_app_role_can_only_read_rows_for_the_current_school(self):
+        self.assume_app_role_for_school(self.school_a)
+        visible = set(Student.objects.values_list("pk", flat=True))
+        self.assertEqual(visible, {self.student_a.pk})
+        self.assertFalse(Student.objects.filter(pk=self.student_b.pk).exists())
+
+    def test_app_role_cannot_insert_for_another_school(self):
+        self.assume_app_role_for_school(self.school_a)
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                Student.objects.create(school=self.school_b, name="Cross-school insert")
+
+
+
 class SchoolSignupFlowTestCase(TestCase):
     def setUp(self):
         PlatformBillingSettings.objects.create(pk=1, basic_monthly_amount_ars="125000.00",
@@ -707,6 +833,54 @@ class SchoolSignupFlowTestCase(TestCase):
             content_type="application/json")
         self.assertEqual(duplicate.status_code, 400)
         self.assertEqual(School.objects.count(), 1)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_zero_cost_self_service_and_promo_renewal_are_disclosed_and_charged(self):
+        pricing = PlatformBillingSettings.objects.get(pk=1)
+        pricing.basic_monthly_amount_ars = "15000.00"
+        pricing.pro_monthly_amount_ars = "20000.00"
+        pricing.onboarding_amount_ars = "0.00"
+        pricing.save()
+        page = self.client.get("/registro/")
+        self.assertContains(page, "20000.00")
+        self.assertContains(page, "80000.00")
+        self.create_signup()
+        signup = self.verify_latest_signup()
+        self.client.force_login(self.platform_admin)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(f"/api/v1/platform/school-signups/{signup.id}/approve/",
+                data="{}", content_type="application/json")
+        self.assertEqual(response.status_code, 201)
+        subscription = SchoolSubscription.objects.get(school_id=response.json()["id"])
+        self.assertEqual(subscription.charges.count(), 1)
+        self.assertIsNotNone(subscription.promo_ends_on)
+        self.assertEqual(subscription.renewal_monthly_amount_ars, 80000)
+        self.assertIn(subscription.promo_ends_on.strftime("%d/%m/%Y"), mail.outbox[-1].body)
+        public_quote = self.client.get(f"/registro/solicitud/{signup.id}/")
+        self.assertContains(public_quote, subscription.promo_ends_on.strftime("%d/%m/%Y"))
+        first_month = subscription.charges.get(kind=SubscriptionCharge.Kind.MONTHLY)
+        paid = self.client.patch(f"/api/v1/platform/billing/charges/{first_month.id}/",
+            data=json.dumps({"state": "paid", "transfer_reference": "PROMO-1"}),
+            content_type="application/json")
+        self.assertEqual(paid.status_code, 200)
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.state, SchoolSubscription.State.ACTIVE)
+
+    def test_existing_price_stays_put_and_new_school_renews_after_promo(self):
+        from .views import subscription_price_for
+        legacy = SchoolSubscription.objects.create(school=self.school_for_price_test(),
+            plan=SubscriptionPlan.PRO, state=SchoolSubscription.State.ACTIVE,
+            monthly_amount_ars="12000.00", onboarding_amount_ars="2000.00",
+            contact_name="Dirección", contact_email="old@school.test")
+        self.assertEqual(str(subscription_price_for(legacy, timezone.localdate().replace(day=1), SubscriptionPlan.PRO)), "12000.00")
+        legacy.promo_ends_on = date(2027, 9, 28)
+        legacy.renewal_monthly_amount_ars = 80000
+        legacy.monthly_amount_ars = 20000
+        self.assertEqual(str(subscription_price_for(legacy, date(2027, 9, 1), SubscriptionPlan.PRO)), "20000")
+        self.assertEqual(str(subscription_price_for(legacy, date(2027, 10, 1), SubscriptionPlan.PRO)), "80000")
+
+    def school_for_price_test(self):
+        return School.objects.create(name="Escuela previa", slug="escuela-previa")
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_requoted_request_activates_school_and_invites_school_admin_after_both_payments(self):

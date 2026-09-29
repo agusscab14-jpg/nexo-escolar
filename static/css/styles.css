@@ -21,6 +21,12 @@
 .text-size-controls .text-size-reset{font-size:calc(10px + var(--nexo-font-adjust, 1.2px))}
 @media(max-width:760px){.text-size-controls{gap:0;padding:1px}.text-size-controls button{min-width:24px;height:25px;padding:0 4px}.breadcrumbs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.top-actions{gap:7px}}
 
+.school-current{border:1px solid var(--line);border-radius:10px;padding:11px 9px;display:flex;align-items:center;gap:9px;margin-bottom:30px;background:var(--white);color:var(--ink)}
+.school-current>div:nth-child(2){min-width:0;overflow:hidden}
+.school-current b,.school-current small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.school-current b{font-size:calc(10px + var(--nexo-font-adjust, 1.2px))}
+.school-current small{color:#98a39e;font-size:calc(9px + var(--nexo-font-adjust, 1.2px));margin-top:4px}
+
 :root[data-theme="dark"]{color-scheme:dark;--ink:#e5ede8;--muted:#a6b5ac;--line:#35463c;--paper:#121a16;--white:#1d2822;--green:#8bc49f;--green-2:#a3d3b2;--mint:#263a2e;--peach:#44362a;--lav:#342f43;--shadow:0 8px 24px rgba(0,0,0,.24)}
 html[data-theme="dark"],html[data-theme="dark"] body{background:var(--paper);color:var(--ink)}
 html[data-theme="dark"] .login-shell,html[data-theme="dark"] .login-panel{background:var(--paper)}
@@ -223,9 +229,9 @@ html[data-school-theme] .school-theme-options{grid-template-columns:repeat(auto-
 @media(max-width:480px){html[data-school-theme] .school-theme-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:350px){html[data-school-theme] .school-theme-options{grid-template-columns:1fr}}
 /* Individual Argentine-style academic report card. */
-.report-controls{display:grid;grid-template-columns:minmax(230px,1fr) minmax(220px,.8fr) auto;gap:14px;align-items:end;margin:0 0 18px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.report-controls{display:grid;grid-template-columns:minmax(230px,1fr) minmax(220px,.8fr) auto;gap:14px;align-items:end;margin:0 0 18px;padding:16px 18px;background:var(--white);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
 .report-controls label{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:650}
-.report-controls select{width:100%;min-height:42px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit}
+.report-controls select{width:100%;min-height:42px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--white);color:var(--ink);font:inherit}
 .report-controls select:focus{outline:3px solid var(--school-focus);border-color:var(--school-accent)}
 .report-download{white-space:nowrap;min-height:42px;display:inline-flex;align-items:center;justify-content:center}
 .report-sheet{max-width:1050px;margin:0 auto;padding:22px;background:#fff;color:#253238;border:1px solid #cbd2d3;border-radius:8px;box-shadow:0 8px 28px rgba(22,39,46,.08)}
@@ -352,3 +358,105 @@ html[data-school-theme] .school-theme-options{grid-template-columns:repeat(auto-
   .reset-result-icon{width:42px;height:42px;margin-bottom:15px}
   .reset-note{padding:11px}
 }
+/* Dark-mode surfaces for the help center */
+html[data-theme="dark"] .help-center-hero {
+  border-color:var(--school-accent-border);
+  background:linear-gradient(120deg,var(--school-soft-surface),var(--white) 68%,var(--school-accent-soft));
+}
+html[data-theme="dark"] .help-center-hero h2 { color:var(--ink); }
+html[data-theme="dark"] .help-center-hero p,
+html[data-theme="dark"] .help-section-heading p { color:var(--muted); }
+html[data-theme="dark"] .help-hero-mark {
+  border-color:var(--school-accent-border); background:var(--school-soft-surface); color:var(--school-accent);
+}
+html[data-theme="dark"] .help-guide-card,
+html[data-theme="dark"] .help-faq-item,
+html[data-theme="dark"] .help-contact { background:var(--white); color:var(--ink); }
+html[data-theme="dark"] .help-guide-count,
+html[data-theme="dark"] .help-guide-audience,
+html[data-theme="dark"] .help-guide-title-wrap small { color:var(--muted); }
+html[data-theme="dark"] .help-guide-icon,
+html[data-theme="dark"] .help-step-number,
+html[data-theme="dark"] .help-contact-icon { background:var(--school-accent-soft); color:var(--school-accent); }
+html[data-theme="dark"] .help-guide-toggle,
+html[data-theme="dark"] .help-faq-item summary span { color:var(--school-accent); }
+html[data-theme="dark"] .help-guide-body { border-color:var(--line); }
+html[data-theme="dark"] .help-guide-intro,
+html[data-theme="dark"] .help-guide-before,
+html[data-theme="dark"] .help-guide-tip { background:var(--school-soft-surface); }
+html[data-theme="dark"] .help-guide-tip { border-left-color:var(--school-accent); }
+html[data-theme="dark"] .help-guide-intro b,
+html[data-theme="dark"] .help-guide-before b,
+html[data-theme="dark"] .help-guide-tip b,
+html[data-theme="dark"] .help-guide-steps li b,
+html[data-theme="dark"] .help-contact h3 { color:var(--ink); }
+html[data-theme="dark"] .help-guide-intro p,
+html[data-theme="dark"] .help-guide-before p,
+html[data-theme="dark"] .help-guide-tip p,
+html[data-theme="dark"] .help-guide-steps li p,
+html[data-theme="dark"] .help-faq-item p,
+html[data-theme="dark"] .help-contact p { color:var(--muted); }
+html[data-theme="dark"] .help-guide-visual { border-color:var(--line); background:var(--school-soft-surface); }
+html[data-theme="dark"] .help-guide-visual figcaption,
+html[data-theme="dark"] .help-search-wrap>p { color:var(--muted); }
+html[data-theme="dark"] .help-search { background:var(--school-soft-surface); color:var(--muted); }
+html[data-theme="dark"] .help-search-empty { border-color:var(--line); color:var(--muted); }
+/* Dark surfaces for remaining school admin views */
+html[data-theme="dark"] .followup-row { border-color:var(--line); }
+html[data-theme="dark"] .followup-row span,
+html[data-theme="dark"] .scheduled-plan { color:var(--muted); }
+html[data-theme="dark"] .read-label { color:var(--school-accent); }
+html[data-theme="dark"] .event-date { background:var(--school-accent-soft); color:var(--school-accent-soft-ink); }
+html[data-theme="dark"] .analytics-filter { color:var(--muted); }
+html[data-theme="dark"] .analytics-filter select { background:var(--school-soft-surface); color:var(--ink); border-color:var(--line); }
+html[data-theme="dark"] .analytics-metric small,
+html[data-theme="dark"] .analytics-metric span { color:var(--muted); }
+html[data-theme="dark"] .analytics-metric strong { color:var(--school-accent); }
+html[data-theme="dark"] .analytics-bar-row>span { color:var(--muted); }
+html[data-theme="dark"] .analytics-bar-row>b { color:var(--ink); }
+html[data-theme="dark"] .analytics-track { background:var(--school-soft-surface); }
+html[data-theme="dark"] .analytics-track i { background:linear-gradient(90deg,var(--school-accent-hover),var(--school-accent)); }
+
+html[data-theme="dark"] .report-sheet { background:var(--white); color:var(--ink); border-color:var(--line); box-shadow:var(--shadow); }
+html[data-theme="dark"] .report-school { color:var(--ink); }
+html[data-theme="dark"] .report-meta { border-color:var(--line); background:var(--school-soft-surface); }
+html[data-theme="dark"] .report-meta>div { border-color:var(--line); }
+html[data-theme="dark"] .report-meta small,
+html[data-theme="dark"] .report-note,
+html[data-theme="dark"] .report-empty { color:var(--muted); }
+html[data-theme="dark"] .report-meta b,
+html[data-theme="dark"] .report-table th,
+html[data-theme="dark"] .report-table td { color:var(--ink); }
+html[data-theme="dark"] .report-table th,
+html[data-theme="dark"] .report-table td,
+html[data-theme="dark"] .report-signatures { border-color:#536158; }
+html[data-theme="dark"] .report-table thead th { background:#293a30; color:var(--ink); }
+html[data-theme="dark"] .report-table tbody th,
+html[data-theme="dark"] .report-table .report-attendance th,
+html[data-theme="dark"] .report-table .report-attendance td { background:var(--school-soft-surface); }
+html[data-theme="dark"] .report-signatures>div,
+html[data-theme="dark"] .report-footer { color:var(--muted); }
+html[data-theme="dark"] .report-footer>div:first-child span { border-color:#536158; }
+@media print {
+  html[data-theme="dark"] .report-sheet { background:#fff!important; color:#253238!important; border-color:#cbd2d3!important; box-shadow:none!important; }
+  html[data-theme="dark"] .report-school,
+  html[data-theme="dark"] .report-meta b,
+  html[data-theme="dark"] .report-table th,
+  html[data-theme="dark"] .report-table td { color:#253238!important; }
+  html[data-theme="dark"] .report-meta { background:#eef1f1!important; border-color:#aeb8ba!important; }
+  html[data-theme="dark"] .report-meta>div { border-color:#c5cccd!important; }
+  html[data-theme="dark"] .report-meta small { color:#5a696e!important; }
+  html[data-theme="dark"] .report-table th,
+  html[data-theme="dark"] .report-table td,
+  html[data-theme="dark"] .report-signatures,
+  html[data-theme="dark"] .report-signatures>div { border-color:#879396!important; }
+  html[data-theme="dark"] .report-table thead th { background:#36454b!important; color:#fff!important; }
+  html[data-theme="dark"] .report-table tbody th { background:#f5f6f6!important; }
+  html[data-theme="dark"] .report-table .report-attendance th,
+  html[data-theme="dark"] .report-table .report-attendance td { background:#ecefef!important; }
+  html[data-theme="dark"] .report-signatures>div,
+  html[data-theme="dark"] .report-footer { color:#36454b!important; }
+  html[data-theme="dark"] .report-footer>div:first-child span { border-color:#879396!important; }
+  html[data-theme="dark"] .report-note { color:#657276!important; }
+}
+html[data-theme="dark"] .help-guide-visual img { filter:invert(.88) hue-rotate(180deg) saturate(.85); }

@@ -4,7 +4,8 @@
     root * /srv/nexo-static
     file_server
   }
-  reverse_proxy app:8000
+  reverse_proxy app:8000 {
+  }
   log {
     output stdout
     format console

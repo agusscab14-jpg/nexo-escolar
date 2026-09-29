@@ -40,6 +40,16 @@ class User(AbstractUser):
         return self.name or self.email
 
 
+class LoginThrottle(models.Model):
+    # Store only keyed digests; never retain raw IP addresses or email addresses.
+    key_digest = models.CharField(max_length=64, unique=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    window_started_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [models.Index(fields=("window_started_at",), name="core_login_window_idx")]
+
+
 class School(models.Model):
     class Type(models.TextChoices):
         COMMON = "common", "Secundaria común"
@@ -431,6 +441,8 @@ class PlatformBillingSettings(models.Model):
     basic_monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     pro_monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     onboarding_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    basic_renewal_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, default=50000)
+    pro_renewal_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, default=80000)
     updated_at = models.DateTimeField(auto_now=True)
 
 
@@ -454,6 +466,8 @@ class SchoolSignupRequest(models.Model):
     plan = models.CharField(max_length=12, choices=SubscriptionPlan.choices)
     monthly_quote_ars = models.DecimalField(max_digits=12, decimal_places=2)
     onboarding_quote_ars = models.DecimalField(max_digits=12, decimal_places=2)
+    renewal_quote_ars = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    renewal_on = models.DateField(null=True, blank=True)
     quoted_at = models.DateTimeField(default=timezone.now)
     quote_expires_at = models.DateTimeField()
     verification_token_hash = models.CharField(max_length=64)
@@ -500,6 +514,9 @@ class SchoolSubscription(models.Model):
     plan_change_effective_on = models.DateField(null=True, blank=True)
     monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2)
     onboarding_amount_ars = models.DecimalField(max_digits=12, decimal_places=2)
+    renewal_monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    pending_renewal_monthly_amount_ars = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    promo_ends_on = models.DateField(null=True, blank=True)
     contact_name = models.CharField(max_length=180)
     contact_email = models.EmailField()
     activated_at = models.DateTimeField(null=True, blank=True)
