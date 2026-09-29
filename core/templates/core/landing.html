@@ -1,0 +1,143 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183d37">
+  <meta name="description" content="Nexo Escolar reúne la gestión académica, la comunicación y la vida diaria de escuelas secundarias en un espacio compartido.">
+  <title>Nexo Escolar · Gestión para secundarias</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/landing.css' %}?v=1">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav-wrap" aria-label="Navegación principal">
+      <a class="brand" href="#inicio" aria-label="Nexo Escolar, inicio">
+        <span class="brand-mark">n</span><span>Nexo<span class="brand-light">Escolar</span></span>
+      </a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Abrir menú"><span></span><span></span></button>
+      <div class="site-nav" id="site-nav">
+        <a href="#solucion">La solución</a>
+        <a href="#modulos">Módulos</a>
+        <a href="#planes">Planes</a>
+        <a href="#preguntas">Preguntas</a>
+        <a class="nav-login" href="/ingresar/">Ingresar</a>
+        <a class="button button-nav" href="/registro/">Sumá tu escuela <span aria-hidden="true">↗</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero section-wrap" id="inicio">
+      <div class="hero-copy">
+        <span class="eyebrow"><i></i> PARA SECUNDARIAS COMUNES Y TÉCNICAS</span>
+        <h1>La escuela conectada.<br><em>Todo en su lugar.</em></h1>
+        <p class="hero-lede">Una plataforma para organizar la gestión académica y acercar a directivos, docentes, estudiantes y familias.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="/registro/">Conocé Nexo para tu escuela <span aria-hidden="true">↗</span></a>
+          <a class="button button-quiet" href="#solucion"><span class="play-icon" aria-hidden="true">↓</span> Recorrer la plataforma</a>
+        </div>
+        <div class="hero-note"><span class="note-check" aria-hidden="true">✓</span><span>Un espacio común para acompañar cada trayectoria.</span></div>
+      </div>
+      <div class="hero-visual" aria-label="Vista ilustrativa de la plataforma Nexo Escolar" role="img">
+        <div class="visual-orbit orbit-one"></div><div class="visual-orbit orbit-two"></div>
+        <div class="dashboard-window">
+          <div class="window-top"><div class="mini-brand"><b>n</b> Nexo<span>Escolar</span></div><div class="window-dots"><i></i><i></i><i></i></div><span class="window-user">AM</span></div>
+          <div class="dashboard-body">
+            <aside class="mock-sidebar"><div class="mock-school"><b>ES</b><span>Escuela Secundaria<small>Turno mañana</small></span></div><div class="mock-nav-label">MENÚ</div><div class="mock-nav-item selected"><i>⌂</i> Inicio</div><div class="mock-nav-item"><i>▤</i> Alumnos</div><div class="mock-nav-item"><i>✓</i> Asistencia</div><div class="mock-nav-item"><i>✳</i> Calificaciones</div><div class="mock-nav-item"><i>▦</i> Calendario</div></aside>
+            <div class="mock-content"><div class="mock-greeting"><span>MIÉRCOLES · CICLO LECTIVO</span><b>¡Buen día, Ana!</b><small>Así se mueve hoy tu escuela.</small></div>
+              <div class="mock-stats"><div><span>Alumnos</span><b>1.248</b><small class="stat-good">● Comunidad activa</small></div><div><span>Asistencia hoy</span><b>94,6%</b><small>Registro del turno</small></div><div><span>Próximas fechas</span><b>03</b><small>En el calendario</small></div></div>
+              <div class="mock-lower"><div class="mock-card mock-chart"><div class="mock-card-title"><b>Seguimiento académico</b><small>Este período</small></div><div class="chart-columns"><i style="--h:48%"></i><i style="--h:68%"></i><i style="--h:56%"></i><i style="--h:84%"></i><i style="--h:64%"></i><i style="--h:94%"></i><i style="--h:75%"></i></div><div class="chart-labels"><span>1.º</span><span>2.º</span><span>3.º</span><span>4.º</span><span>5.º</span><span>6.º</span></div></div><div class="mock-card mock-agenda"><div class="mock-card-title"><b>Agenda próxima</b><small>Ver todo →</small></div><div class="agenda-row"><b>12</b><span><strong>Reunión de equipo</strong><small>Jueves · 10:30</small></span></div><div class="agenda-row"><b>15</b><span><strong>Feria de ciencias</strong><small>Lunes · Comunidad</small></span></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="float-card float-attendance"><span class="float-icon">✓</span><span><b>Asistencia registrada</b><small>Información de la jornada</small></span></div>
+        <div class="float-card float-community"><div class="avatar-stack"><i>ML</i><i>JP</i><i>+3</i></div><span><b>Una comunidad</b><small>En conexión</small></span></div>
+        <span class="visual-spark spark-one">✳</span><span class="visual-spark spark-two">✦</span>
+      </div>
+      <a class="scroll-cue" href="#solucion"><span></span> DESLIZÁ PARA DESCUBRIR</a>
+    </section>
+
+    <section class="intro-band" id="solucion">
+      <div class="section-wrap intro-grid">
+        <div class="intro-kicker"><span class="eyebrow eyebrow-dark">UNA MIRADA COMPARTIDA</span><h2>La información de la escuela, <em>cerca de quienes la necesitan.</em></h2></div>
+        <div class="intro-copy"><p>Nexo Escolar reúne las tareas cotidianas de la secundaria en un entorno simple de usar. Cada persona accede a la información que necesita según su rol.</p><a class="text-link" href="#modulos">Conocé lo que podés hacer <span aria-hidden="true">→</span></a></div>
+      </div>
+    </section>
+
+    <section class="modules section-wrap" id="modulos">
+      <div class="section-heading"><span class="eyebrow eyebrow-green">UNA PLATAFORMA, MUCHAS TAREAS</span><h2>Todo lo que hace funcionar <em>la vida escolar.</em></h2><p>Herramientas conectadas para el equipo de gestión, docentes, estudiantes y familias.</p></div>
+      <div class="module-grid">
+        <article class="module-card module-featured"><span class="module-number">01</span><span class="module-icon icon-mint">⌂</span><h3>Gestión académica</h3><p>Organizá cursos, divisiones, materias, equipos docentes y legajos de estudiantes desde un mismo espacio.</p><a href="/registro/" aria-label="Consultar por gestión académica">↗</a><div class="mini-roster"><div><span>Estudiante</span><span>Curso</span><span>Estado</span></div><div><b>Valentina R.</b><span>3.º · A</span><i>Regular</i></div><div><b>Tomás M.</b><span>3.º · A</span><i>Regular</i></div></div></article>
+        <article class="module-card"><span class="module-number">02</span><span class="module-icon icon-peach">✓</span><h3>Asistencia</h3><p>Registrá presentes, ausencias, llegadas tarde y justificaciones. Consultá el recorrido de cada jornada.</p><a href="/registro/" aria-label="Consultar por asistencia">↗</a><div class="module-decoration attendance-decoration"><span>Hoy</span><b>94,6<small>%</small></b><i><em></em></i><small>Asistencia del turno</small></div></article>
+        <article class="module-card"><span class="module-number">03</span><span class="module-icon icon-lavender">✳</span><h3>Calificaciones y boletines</h3><p>Cargá notas por materia y período. Generá boletines para que las trayectorias estén a la vista.</p><a href="/registro/" aria-label="Consultar por calificaciones y boletines">↗</a><div class="module-decoration grades-decoration"><div><span>MATEMÁTICA</span><b>8</b><i>2.º período</i></div><div><span>LENGUA</span><b>9</b><i>2.º período</i></div><div><span>HISTORIA</span><b>7</b><i>2.º período</i></div></div></article>
+        <article class="module-card"><span class="module-number">04</span><span class="module-icon icon-blue">◉</span><h3>Avisos y calendario</h3><p>Compartí novedades y fechas importantes con estudiantes, familias y equipos escolares.</p><a href="/registro/" aria-label="Consultar por avisos y calendario">↗</a><div class="module-decoration notice-decoration"><span class="notice-pin">◉</span><span><b>Semana de proyectos</b><small>Publicado para toda la comunidad</small></span><i>Hoy</i></div></article>
+        <article class="module-card"><span class="module-number">05</span><span class="module-icon icon-gold">▣</span><h3>Biblioteca escolar</h3><p>Mantené el catálogo organizado y seguí los préstamos y devoluciones de libros.</p><a href="/registro/" aria-label="Consultar por biblioteca escolar">↗</a><div class="module-decoration books-decoration"><i></i><i></i><i></i><i></i><span>Catálogo y préstamos</span></div></article>
+        <article class="module-card module-dark"><span class="module-number">06</span><span class="module-icon icon-dark">⌁</span><h3>Estadísticas académicas</h3><p>Explorá indicadores y seguimientos para entender mejor la información de cada período.</p><a href="/registro/" aria-label="Consultar por estadísticas académicas">↗</a><div class="module-decoration analytics-decoration"><div><i style="--bar:35%"></i><i style="--bar:54%"></i><i style="--bar:46%"></i><i style="--bar:72%"></i><i style="--bar:88%"></i><i style="--bar:67%"></i></div><span>Seguimiento del período</span></div></article>
+      </div>
+      <p class="modules-footnote"><span>✳</span> Algunas herramientas, como las estadísticas académicas, dependen del plan contratado.</p>
+    </section>
+
+    <section class="experience-band">
+      <div class="section-wrap experience-grid">
+        <div class="experience-copy"><span class="eyebrow">HECHA PARA LA SECUNDARIA</span><h2>Más claridad para acompañar <em>cada trayectoria.</em></h2><p>La escuela reúne muchos recorridos, voces y momentos. Nexo conecta la información cotidiana para que el equipo pueda estar cerca de lo importante.</p><a class="button button-light" href="/registro/">Conocé los planes <span aria-hidden="true">↗</span></a></div>
+        <div class="experience-visual"><div class="journey-card"><div class="journey-head"><span><b>Trayectoria escolar</b><small>Vista de seguimiento</small></span><span class="journey-avatar">VR</span></div><div class="journey-student"><span>VR</span><b>Valentina Ríos</b><small>3.º año · División A</small></div><div class="journey-rule"><span>1.º</span><i class="done"></i><i class="done"></i><i class="current"></i><i></i><i></i><i></i><span>6.º</span></div><div class="journey-details"><div><small>Asistencia del período</small><b>96%</b><span><i></i></span></div><div><small>Materias con notas</small><b>8 de 9</b><span class="detail-tag">En curso</span></div></div><div class="journey-footer"><span>Última actualización</span><b>Información del ciclo lectivo</b></div></div><div class="experience-sticker">Una escuela<br><b>en conexión</b> <span>✳</span></div><span class="experience-leaf leaf-a"></span><span class="experience-leaf leaf-b"></span></div>
+      </div>
+    </section>
+
+    <section class="how section-wrap">
+      <div class="section-heading"><span class="eyebrow eyebrow-green">EMPEZAR ES SIMPLE</span><h2>Un camino claro para <em>sumar tu escuela.</em></h2><p>Solicitá el alta y el equipo de Nexo te acompaña en los próximos pasos.</p></div>
+      <div class="steps-grid"><article><span>01</span><div class="step-icon">✉</div><h3>Completá la solicitud</h3><p>Contanos de tu escuela y quién será el contacto directivo.</p></article><article><span>02</span><div class="step-icon">✓</div><h3>Verificá tu correo</h3><p>Confirmá la dirección para que podamos revisar la solicitud.</p></article><article><span>03</span><div class="step-icon">↗</div><h3>Conversamos el alta</h3><p>Revisá los detalles del plan y coordiná los siguientes pasos con Nexo.</p></article></div>
+      <div class="steps-cta"><p>¿Ya formás parte de una escuela?</p><a class="text-link" href="/ingresar/">Ingresá a tu espacio escolar <span aria-hidden="true">→</span></a></div>
+    </section>
+
+    <section class="plans-band" id="planes">
+      <div class="section-wrap plans-grid">
+        <div class="plans-copy"><span class="eyebrow eyebrow-dark">UNA PROPUESTA PARA TU ESCUELA</span><h2>Elegí el plan que acompaña <em>tu proyecto.</em></h2><p>Conocé las opciones Básico y Pro. En la solicitud vas a poder revisar el precio vigente, las condiciones de renovación y el costo de alta antes de avanzar.</p><a class="button button-primary" href="/registro/">Ver planes y solicitar el alta <span aria-hidden="true">↗</span></a><small>Enviar una solicitud no crea una cuenta ni confirma un pago.</small></div>
+        <div class="plan-cards"><article class="plan-card"><div class="plan-card-top"><span class="plan-symbol">n</span><span class="plan-label">ESENCIAL</span></div><h3>Básico</h3><p>Las herramientas fundamentales para la gestión académica y la comunidad escolar.</p><ul><li>Gestión académica</li><li>Asistencia y calificaciones</li><li>Boletines, avisos y calendario</li><li>Biblioteca escolar</li></ul><a href="/registro/">Consultar plan <span>→</span></a></article><article class="plan-card plan-card-pro"><div class="plan-card-top"><span class="plan-symbol">✳</span><span class="plan-label">MÁS SEGUIMIENTO</span></div><h3>Pro</h3><p>Sumá herramientas de análisis para ampliar el seguimiento académico.</p><ul><li>Todo lo incluido en Básico</li><li>Estadísticas académicas</li><li>Indicadores por período</li><li>Vista de seguimiento</li></ul><a href="/registro/">Consultar plan <span>→</span></a></article></div>
+      </div>
+    </section>
+
+    <section class="faq section-wrap" id="preguntas">
+      <div class="faq-heading"><span class="eyebrow eyebrow-green">PREGUNTAS FRECUENTES</span><h2>Lo que necesitás saber <em>antes de empezar.</em></h2><p>Si tenés otra consulta, iniciá una solicitud y el equipo de Nexo te acompaña.</p><a class="text-link" href="/registro/">Hablar con Nexo <span aria-hidden="true">→</span></a></div>
+      <div class="faq-list">
+        <details open><summary>¿Para qué tipo de escuelas está pensado Nexo?<span></span></summary><p>La propuesta actual está orientada a escuelas secundarias comunes y técnicas.</p></details>
+        <details><summary>¿Qué personas pueden usar la plataforma?<span></span></summary><p>Directivos, personal de gestión, docentes, estudiantes y familias pueden acceder a las funciones que corresponden a su rol.</p></details>
+        <details><summary>¿Cómo solicito el alta de mi escuela?<span></span></summary><p>Completá el formulario de registro, verificá tu correo y el equipo de Nexo podrá revisar la solicitud y conversar los próximos pasos.</p></details>
+        <details><summary>¿Cuándo conozco el precio y las condiciones?<span></span></summary><p>La solicitud muestra los planes y sus importes vigentes. Antes de coordinar el pago podés revisar el precio, la renovación y el alta. Enviar la solicitud no genera un cobro.</p></details>
+        <details><summary>¿La solicitud crea una cuenta automáticamente?<span></span></summary><p>No. Primero verificás tu correo; luego Nexo revisa la solicitud. El alta se confirma después de acordar las condiciones.</p></details>
+        <details><summary>¿Cómo ingreso si mi escuela ya usa Nexo?<span></span></summary><p>Usá el botón Ingresar para acceder con el correo electrónico asociado a tu escuela.</p></details>
+      </div>
+    </section>
+
+    <section class="closing-cta section-wrap"><div class="closing-orb orb-left"></div><div class="closing-orb orb-right"></div><span class="eyebrow">NEXO ESCOLAR</span><h2>La escuela avanza mejor <em>cuando estamos conectados.</em></h2><p>Descubrí cómo Nexo puede acompañar la vida diaria de tu secundaria.</p><a class="button button-light" href="/registro/">Sumá tu escuela <span aria-hidden="true">↗</span></a></section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="section-wrap footer-main"><div class="footer-brand"><a class="brand" href="#inicio"><span class="brand-mark">n</span><span>Nexo<span class="brand-light">Escolar</span></span></a><p>Gestión simple.<br>Comunidad conectada.</p></div><div class="footer-links"><div><b>Explorá</b><a href="#solucion">La solución</a><a href="#modulos">Módulos</a><a href="#planes">Planes</a></div><div><b>Tu escuela</b><a href="/registro/">Solicitar el alta</a><a href="/ingresar/">Ingresar</a><a href="#preguntas">Preguntas frecuentes</a></div></div></div>
+    <div class="section-wrap footer-bottom"><span>© {% now "Y" %} Nexo Escolar</span><span>Hecho para acompañar la escuela secundaria <i>✳</i></span></div>
+  </footer>
+  <script>
+    (() => {
+      const button = document.querySelector(".menu-toggle");
+      const nav = document.querySelector(".site-nav");
+      button.addEventListener("click", () => {
+        const isOpen = button.getAttribute("aria-expanded") === "true";
+        button.setAttribute("aria-expanded", String(!isOpen));
+        button.setAttribute("aria-label", isOpen ? "Abrir menú" : "Cerrar menú");
+        nav.classList.toggle("is-open", !isOpen);
+      });
+      nav.addEventListener("click", event => {
+        if (event.target.closest("a")) {
+          nav.classList.remove("is-open");
+          button.setAttribute("aria-expanded", "false");
+          button.setAttribute("aria-label", "Abrir menú");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -2,10 +2,11 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path
 from core.forms import NexoPasswordResetForm
-from core import views
+from core import landing, views
 
 urlpatterns = [
-    path("", views.home, name="home"),
+    path("", landing.home, name="home"),
+    path("ingresar/", landing.login, name="login"),
     path("registro/", views.school_signup_page, name="school_signup"),
     path("registro/verificar/<uuid:request_id>/<str:token>/", views.school_signup_verify, name="school_signup_verify"),
     path("registro/solicitud/<uuid:request_id>/", views.school_signup_result, name="school_signup_result"),
